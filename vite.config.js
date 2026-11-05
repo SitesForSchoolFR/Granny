@@ -1,11 +1,16 @@
 import { defineConfig } from 'vite'
 
 /**
- * base: '/Granny-Inspiration-IG/'  ->  OBRIGATORIO bater com o nome do repositorio.
+ * base: '/<nome-do-repo>/'  ->  OBRIGATORIO bater com o nome do repositorio.
  * Ver docs/GITHUB_PAGES.md. Errar aqui = "funciona local, 404 no Pages".
  * Em dev (vite serve) a base e '/' para o preview local funcionar.
+ *
+ * No CI lemos GITHUB_REPOSITORY: se o repo for renomeado de novo, o build
+ * acompanha sozinho em vez de publicar assets em /nome-antigo/. Localmente
+ * cai no nome atual (SitesForSchoolFR/Granny — o repo ja se chamou
+ * Granny-Inspiration-IG, e esse nome antigo ainda redireciona).
  */
-const REPO_NAME = 'Granny-Inspiration-IG'
+const REPO_NAME = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'Granny'
 
 export default defineConfig(({ command }) => ({
   base: command === 'serve' ? '/' : `/${REPO_NAME}/`,
