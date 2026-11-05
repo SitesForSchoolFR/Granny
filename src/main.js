@@ -10,6 +10,13 @@ const canvas = document.getElementById('scene')
 const hudRoot = document.getElementById('hud')
 const screensRoot = document.getElementById('screens')
 
+// Sinal para o vigia inline do index.html: o bundle chegou a rodar.
+window.__escapeHouse = window.__escapeHouse ?? { started: false, booted: false, failed: [] }
+window.__escapeHouse.started = true
+// Primeira linha útil do console em depuração remota: se isto aparecer, o
+// bundle carregou e o problema está no boot (não no caminho do arquivo).
+console.info('[escape-house] bundle carregado em', location.href)
+
 const game = new Game({ canvas, hudRoot, screensRoot, params })
 window.game = game // console: game.debugText(), game.save.snapshot(...)
 
@@ -41,10 +48,29 @@ function hasWebGL() {
   }
 }
 
+// Boot com prazo: se algo travar (promessa que nunca resolve, driver de vídeo
+// pendurado), o jogo mostra o erro em vez de ficar preso no "acordando…".
+const BOOT_TIMEOUT_MS = 20000
+
+function bootWithWatchdog() {
+  let timer = 0
+  const timeout = new Promise((_, reject) => {
+    timer = window.setTimeout(
+      () => reject(new Error(`o boot passou de ${BOOT_TIMEOUT_MS / 1000}s — veja o console (F12)`)),
+      BOOT_TIMEOUT_MS,
+    )
+  })
+  return Promise.race([game.boot(), timeout]).finally(() => window.clearTimeout(timer))
+}
+
 if (!hasWebGL()) {
   fatal(new Error('WebGL indisponível neste navegador'))
 } else {
-  game.boot().catch(fatal)
+  bootWithWatchdog()
+    .then(() => {
+      window.__escapeHouse.booted = true
+    })
+    .catch(fatal)
 }
 
 // Tela de "clique para começar": o Pointer Lock exige gesto do usuário.

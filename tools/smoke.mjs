@@ -8,6 +8,7 @@
  * Uso local: node tools/smoke.mjs  (ou npm run smoke)
  */
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
 const { HOUSE, PLAYER, NOISE, GRANNY } = await import('../src/core/config.js')
 const { CollisionWorld } = await import('../src/world/CollisionWorld.js')
@@ -439,6 +440,33 @@ test('localStorage indisponível não quebra nada', () => {
   const s = new SaveSystem({ storage: null })
   assert.equal(s.save({ x: 1 }), false)
   assert.equal(s.load(), null)
+})
+
+// ─── boot ─────────────────────────────────────────────────────────────────
+// O sintoma mais ruin de um site estatico e o "loading infinito": o HTML abre,
+// o bundle nao roda, e nao ha erro nenhum na tela. Esses testes garantem que o
+// vigia inline continua no HTML e que o main.js conversa com ele.
+console.log('boot')
+const readUtf = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8')
+
+test('index.html tem o vigia de boot inline e os nós que ele usa', () => {
+  const html = readUtf('../index.html')
+  assert.match(html, /id="loading"/, 'sem #loading')
+  assert.match(html, /id="loading-label"/, 'sem #loading-label')
+  assert.match(html, /window\.__escapeHouse/, 'sem o vigia inline (__escapeHouse)')
+  // Captura em fase de captura: erro de recurso (404 do bundle) nao borbulha.
+  assert.match(html, /addEventListener\([\s\S]{0,900}?'error'[\s\S]{0,900}?true\s*,/, "vigia precisa escutar 'error' com capture=true")
+  const iVigia = html.indexOf('window.__escapeHouse')
+  const iModulo = html.indexOf('type="module"')
+  assert.ok(iVigia > -1 && iModulo > -1 && iVigia < iModulo, 'o vigia tem que vir antes do <script type="module">')
+})
+
+test('main.js sinaliza started/booted para o vigia', () => {
+  const js = readUtf('../src/main.js')
+  assert.match(js, /__escapeHouse\.started = true/, 'main.js nao marca started')
+  assert.match(js, /__escapeHouse\.booted = true/, 'main.js nao marca booted')
+  // Sem prazo, um boot travado vira loading infinito de novo.
+  assert.match(js, /Promise\.race\(\[game\.boot\(\)/, 'boot sem watchdog de timeout')
 })
 
 function mulberry(seed) {
