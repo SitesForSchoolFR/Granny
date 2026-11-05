@@ -185,4 +185,5 @@ grep -oE '(href|src)="/[^"]+"' dist/index.html
 | modelo não aparece, sem erro | falta `npm run vendor:draco` (se o manifesto pediu `draco: true`) |
 | deploy passa, site não muda | cache agressivo do navegador; confira o hash no `Settings → Pages` |
 | "Blocked request / host not allowed" no preview local | `server.allowedHosts` — já liberado no `vite.config.js` |
+| fica eternamente em "acordando…" | o bundle não rodou: 404 do caminho, HTML em cache de um build anterior, ou erro antes do boot. O `index.html` tem um **vigia inline** que, em 8 s, mostra o motivo e um botão "recarregar sem cache" (ele sobrevive ao bundle, porque é inline) |
 | `manualChunks is not a function` | Vite 8 usa rolldown: use `output.advancedChunks.groups` |
