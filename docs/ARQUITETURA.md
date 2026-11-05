@@ -251,7 +251,7 @@ combina alcance (`PLAYER.interactRange`), cone (`interactConeDot`) e LOS.
 ### `player/PlayerController.js`
 
 Move com aceleração + amortecimento, colide por círculo, sobe degraus ≤
-`stepHeight`. Posturas: `walk` / `crouch` / `sprint` / `hide`, expostas em
+`stepHeight`. Posturas: `walk` / `crouch` / `lying` / `hide`, expostas em
 `get stance()` (o HUD escuta `Ev.PLAYER_STANCE`). Emite passos: a cada
 `distanceSinceStep` metros, chama `audio.footstep(...)` e
 `noise.emit({ position, loudness, type })` com o valor de `PLAYER.noise`

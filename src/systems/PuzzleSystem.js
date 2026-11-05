@@ -38,7 +38,12 @@ export class PuzzleSystem {
     this.searchedCount = 0
     this.needleFound = 0
 
-    const slots = this.pois.filter((p) => p.kind === 'container' || p.kind === 'item')
+    // POIs `fixed` (ex.: a chave do quarto inicial) têm domicílio garantido:
+    // o sorteio NÃO pode realocar o item deles, senão a run trava.
+    const slots = this.pois.filter((p) => (p.kind === 'container' || p.kind === 'item') && !p.fixed)
+    for (const fixed of this.pois.filter((p) => p.fixed && p.item)) {
+      this.loot.set(fixed.id, { item: fixed.item, label: itemLabel(fixed.item) })
+    }
     // Embaralha os slots e garante que os itens-chave tenham domicílio.
     const shuffled = [...slots].sort(() => this.rng() - 0.5)
     const keySlots = shuffled.slice(0, Math.max(this.requiredKeys.length, Math.min(itemCount, shuffled.length)))
@@ -72,7 +77,8 @@ export class PuzzleSystem {
   /** O POI pergunta: "tem algo dentro de mim?". */
   search(poi) {
     this.searchedCount += 1
-    const found = this.loot.get(poi.id) ?? null
+    // POI fixo (chave do quarto inicial) sempre entrega o que declara.
+    const found = (poi.fixed && poi.item ? { item: poi.item, label: itemLabel(poi.item) } : null) ?? this.loot.get(poi.id) ?? null
     if (found) {
       this.loot.set(poi.id, null)
       if (this.requiredKeys.includes(found.item)) this.needleFound += 1

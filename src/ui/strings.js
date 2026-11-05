@@ -35,6 +35,8 @@ export const STR = {
     unhide: 'sair',
     examine: 'examinar',
     locked: 'trancada',
+    unlocked: 'a chave girou',
+    missing: 'falta',
   },
   caught: {
     title: 'ELA TE PEGOU',
@@ -59,7 +61,7 @@ export const STR = {
     hidden: 'escondido',
     lantern: 'lanterna',
     crouch: 'agachado',
-    sprint: 'correndo',
+    lying: 'deitado',
   },
   loading: ['acordando…', 'montando a casa…', 'escondendo as coisas…', 'apagando as luzes…'],
   noWebGL: {

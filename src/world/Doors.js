@@ -33,6 +33,9 @@ export class Door {
     this.world = opts.world
     this.label = opts.label ?? 'porta'
     this.locked = !!opts.locked
+    /** Id do item que abre esta porta (null = tranca só por puzzle). */
+    this.requires = opts.requires ?? null
+    this.cell = opts.cell ?? null
     this.isOpen = false
     this.onToggled = opts.onToggled
     this.swingSign = opts.swingSign ?? 1
@@ -95,6 +98,19 @@ export class Door {
   setLocked(locked) {
     this.locked = !!locked
     this.lockBadge.visible = this.locked
+  }
+
+  /**
+   * Tenta abrir a tranca com um item (doc §1: cadeado simples do quarto
+   * inicial). Não abre a porta — só destranca, para o jogador decidir.
+   * @param {{has:(id:string)=>boolean}} inventory
+   */
+  unlockWith(inventory) {
+    if (!this.locked) return { ok: true, reason: 'já aberta' }
+    if (!this.requires) return { ok: false, reason: 'sem chave que sirva' }
+    if (!inventory?.has?.(this.requires)) return { ok: false, reason: 'falta a chave', item: this.requires }
+    this.setLocked(false)
+    return { ok: true, item: this.requires }
   }
 
   /** @returns {{ok:boolean, open:boolean, loudness:number, reason?:string}} */

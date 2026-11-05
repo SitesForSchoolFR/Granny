@@ -16,32 +16,52 @@ export const GAME = Object.freeze({
   totalDays: 1,
 })
 
+/**
+ * Valores de §3 do doc da Parte 2 (com os nomes que o resto do código já usa).
+ * SEM sprint por decisão de design: "o jogo não é sobre reflexo, é sobre
+ * decisão" — a escolha é andar (rápido e barulhento) ou agachar (lento e
+ * silencioso). Não reintroduzir velocidade de corrida sem revisar isso.
+ */
 export const PLAYER = Object.freeze({
-  height: 1.72,
-  crouchHeight: 1.02,
-  eyeRatio: 0.94, // eye = height * eyeRatio
+  // ── colisão (cilindro; ver docs/DECISOES.md §1)
   radius: 0.3,
-  walkSpeed: 2.65,
-  sprintSpeed: 4.55,
-  crouchSpeed: 1.15,
+  height: 1.75,
+  crouchHeight: 1.0,
+  /** Altura de obstáculo que o jogador "sobe" sem precisar de pulo. */
+  stepHeight: 0.24,
+
+  // ── câmera (doc: 1.7 em pé, 0.9 agachado, 0.3 deitado)
+  eyeHeight: 1.7,
+  crouchEye: 0.9,
+  lyingEye: 0.3,
+  /** Doc §3: transição de agachar ~0.2s, nunca instantânea. */
+  crouchLerpTime: 0.2,
+  /** Doc §1: levantar da cama leva ~0.5s; antes disso, ~1.5s de fade. */
+  wakeUpTime: 0.5,
+  wakeHoldTime: 1.5,
+
+  // ── velocidades (doc §3: andando 3.0, agachado 1.2)
+  walkSpeed: 3.0,
+  crouchSpeed: 1.2,
   /** Aceleração lateral (m/s²) — alta = responsivo, baixa = escorregadio. */
   accel: 60,
   /** Amortecimento quando sem input. */
   damping: 18,
   mouseSensitivity: 0.0022,
-  maxPitch: Math.PI / 2 - 0.02,
-  /** Altura de obstáculo que o jogador "sobe" sem precisar de pulo. */
-  stepHeight: 0.24,
-  headBobAmplitude: 0.035,
+  /** Doc §5: pitch limitado a ±85° (não vira de cabeça pra baixo). */
+  maxPitch: (85 * Math.PI) / 180,
+
+  // ── sensação
+  headBobAmplitude: 0.03,
   headBobFrequency: 8.4,
-  /** Alcance de interação (E). */
-  interactRange: 2.1,
-  /** Raio do cone de visão do jogador para HUD focus. */
+
+  // ── interação (doc §6: raycast até ~2.5 unidades)
+  interactRange: 2.5,
   interactConeDot: 0.86,
   /** Distância máxima ao ponto do esconderijo para contar como "escondido". */
   hideRadius: 1.2,
+
   noise: Object.freeze({
-    sprint: 1.0,
     walk: 0.42,
     crouch: 0.1,
     still: 0.0,
@@ -49,6 +69,8 @@ export const PLAYER = Object.freeze({
     interact: 0.55,
     /** Passo agachado quase mudo. */
     crouchFootstep: 0.06,
+    /** Tábua barulhenta (doc §4 — Parte 3 detalha como a IA ouve). */
+    board: 0.85,
   }),
 })
 
@@ -82,7 +104,11 @@ export const HOUSE = Object.freeze({
   wallHeight: 2.85,
   wallThickness: 0.22,
   ceilingHeight: 2.95,
-  /** Para onde o jogador olha ao acordar (na planta, olhando o corredor). */
+  /**
+   * Para onde o jogador olha ao acordar: deitado no quarto inicial (2,2), de
+   * frente para a porta trancada em (4,2) — leste. Andar para frente encara o
+   * vão da porta.
+   */
   spawnYaw: -Math.PI / 2,
   fogColor: 0x07080a,
   fogDensity: 0.055,
@@ -152,20 +178,25 @@ export const SAVE = Object.freeze({
   autosave: true,
 })
 
-/** Atalhos padrão — rebindável na Parte 5 (settings), por isso fica aqui. */
+/**
+ * Atalhos padrão — tabela do doc da Parte 2 (§2), rebindável na Parte 5.
+ * NÃO existe 'sprint': velocidade fixa é decisão de design (ver PLAYER).
+ */
 export const DEFAULT_BINDINGS = Object.freeze({
   forward: ['KeyW', 'ArrowUp'],
   back: ['KeyS', 'ArrowDown'],
   left: ['KeyA', 'ArrowLeft'],
   right: ['KeyD', 'ArrowRight'],
-  sprint: ['ShiftLeft', 'ShiftRight'],
+  /** Segurar (hold). Toggle fica como opção na Parte 5. */
   crouch: ['ControlLeft', 'KeyC'],
-  interact: ['KeyE'],
-  use: ['KeyF', 'Space'],
-  drop: ['KeyQ'],
+  /** E ou clique esquerdo (doc §2). */
+  interact: ['KeyE', 'Mouse0'],
+  inventory: ['Tab', 'KeyQ'],
+  drop: ['KeyG'],
+  pause: ['Escape'],
+  // Extras do projeto (não conflitam com a tabela do doc).
   lantern: ['KeyL'],
-  inventory: ['Tab'],
+  use: ['KeyF', 'Space'],
   map: ['KeyM'],
-  pause: ['Escape', 'KeyP'],
   debug: ['Backquote'],
 })

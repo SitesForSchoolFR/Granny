@@ -256,10 +256,43 @@ Registrado para ninguém achar que é bug silencioso:
 
 | lacuna | onde | quem resolve |
 | --- | --- | --- |
-| `Door.toggle()` não cancela se o vão estiver ocupado — a porta fecha "atravessando" o jogador, que é empurrado pela resolução | `world/Doors.js` | Parte 2 |
+| `Door.toggle()` não cancela se o vão estiver ocupado — a porta fecha "atravessando" o jogador, que é empurrado pela resolução | `world/Doors.js` | Parte 5 (polish) |
+| Salto só em pontos marcados ("vault") — não existe lugar nenhum no mapa ainda | `world/floorplan.js`, `player/PlayerController.js` | Parte 3 (junto do porão/janelas) |
 | Boot tem etapas marcadas, mas nenhuma barra de progresso real (manifesto vazio = 0 assets) | `core/Game.js`, `core/AssetLoader.js` | quando existir arte de verdade |
 | `GrannyAI` patrulha sem waypoints por cômodo e não tem `reset()` | `ai/GrannyAI.js` | Parte 3 |
 | Interpolação de render (`alpha`) não usada | `core/Engine.js` | Parte 5 (polish) |
 | Puzzles além do cadeado da saída (`kind: 'puzzle'`) são no-op | `systems/PuzzleSystem.js`, `world/POI.js` | Parte 4 |
 | `Tab`/`M` mostram um toast (inventário / cômodo atual) em vez de telas dedicadas | `core/Game.js`, `ui/Menus.js` | Parte 5 |
 | Rebind de teclas — `DEFAULT_BINDINGS` existe, a tela não | `ui/Menus.js`, `core/config.js` | Parte 5 |
+
+
+## 16. Parte 2 — spawn, controles e movimentação
+
+**a) Sem corrida, de propósito.** `PLAYER.sprintSpeed` e o binding `Shift`
+saíram do código (e o smoke falha se voltarem). O design troca *destreza* por
+*risco*: 3 m/s andando contra 1,2 m/s agachado, e a diferença real é o ruído
+(0.42 contra 0.10). O jogador não perde por ser lento no teclado, perde por
+escolher mal.
+
+**b) Acordar deitado.** A run começa com a câmera a 0.3 m, fade-in do preto e
+~1,5 s sem controle; o primeiro input de movimento dispara a levantada de
+0,5 s. Isso dá tempo de ler o quarto antes do perigo e transforma o spawn em
+cena, não em teleporte. Cada vez que a Granny pega você, acorda de novo
+deitado — o dia recomeça.
+
+**c) Quarto inicial fechado = tutorial sem texto.** O mapa virou um quarto 3x3
+com uma única saída: uma porta com cadeado. A chave está no criado-mudo
+(`POI_SLOTS[8]`, `fixed: true`) e por isso fica **fora do sorteio** da run —
+`PuzzleSystem.beginRun()` não pode realocar itens fixos, senão a partida
+tranca sozinha.
+
+**d) LOS até o próprio alvo.** `hasLineOfSight()` ganhou `stopShort`: o raio
+para alguns centímetros antes do alvo. O motivo é que o alvo costuma ser a
+própria porta — o painel tem ~13 cm e uma amostra infeliz caía dentro dele,
+fazendo a porta (e a saída da casa) ficar impossível de mirar de forma
+intermitente. Agora o teste cobre 1,2 a 2,4 m da porta da frente.
+
+**e) `input.endFrame()` no fim do frame.** Estava definido e nunca chamado:
+`justPressed` nunca era limpo, então um toque em `E` repetiria a interação 60
+vezes por segundo (e o pause dispararia em loop). Vai no `onRender`, depois de
+todos os passos fixos terem lido o input.

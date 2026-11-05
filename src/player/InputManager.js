@@ -56,13 +56,23 @@ export class InputManager {
       this.delta.x += e.movementX || 0
       this.delta.y += e.movementY || 0
     }
+    // Mouse0 no binding de `interact` (doc §2: "E (ou clique esquerdo)").
+    // Sem binding, cai no nome cru (mouseLeft/mouseRight) como antes.
+    this._mouseAction = (button) => {
+      const code = button === 2 ? 'Mouse2' : button === 1 ? 'Mouse1' : 'Mouse0'
+      const bound = this.#actionFor(code)
+      return bound ?? (button === 2 ? 'mouseRight' : 'mouseLeft')
+    }
     this._onMouseDown = (e) => {
       if (!this.mouse.locked) return
-      this.justPressed.add(e.button === 2 ? 'mouseRight' : 'mouseLeft')
-      this.pressed.add(e.button === 2 ? 'mouseRight' : 'mouseLeft')
+      const a = this._mouseAction(e.button)
+      if (this.locked) return
+      if (this.pressed.has(a)) return
+      this.pressed.add(a)
+      this.justPressed.add(a)
     }
     this._onMouseUp = (e) => {
-      const a = e.button === 2 ? 'mouseRight' : 'mouseLeft'
+      const a = this._mouseAction(e.button)
       this.pressed.delete(a)
       this.justReleased.add(a)
     }

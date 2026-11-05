@@ -132,7 +132,9 @@ export class AudioSystem {
     for (const [alias, src] of [
       ['drawer', 'creak'],
       ['doorOpen', 'creak'],
+      ['doorClose', 'thump'],
       ['doorCreak', 'creak'],
+      ['unlock', 'pickup'],
       ['hide', 'thump'],
       ['unhide', 'thump'],
       ['puzzle', 'pickup'],

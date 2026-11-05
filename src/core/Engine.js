@@ -16,7 +16,8 @@ export class Engine {
     this.scene.fog = new THREE.FogExp2(HOUSE.fogColor, HOUSE.fogDensity)
     this.scene.background = new THREE.Color(HOUSE.fogColor)
 
-    this.camera = new THREE.PerspectiveCamera(74, 1, 0.05, 90)
+    // Doc Parte 2 §5: FOV entre 75 e 80 graus.
+    this.camera = new THREE.PerspectiveCamera(78, 1, 0.05, 90)
     this.camera.rotation.order = 'YXZ' // yaw/pitch sem gimbal weirdness
 
     // Sem WebGL o jogo NAO morre: entra em modo headless e o Game desenha a
