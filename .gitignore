@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.vite/
+*.local
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-error.log*
+coverage/
+.cache/
+*.zip
+
+# Gerado por `npm run vendor:draco` (decoder ~750 kB, não commitar)
+public/vendor/
+
+# Assets binarios grandes nao devem entrar no repo sem compressao.
+public/**/*.wav
+public/**/*.psd
+public/**/*.blend
