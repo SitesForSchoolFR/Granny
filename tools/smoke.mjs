@@ -482,6 +482,60 @@ test('construir o Game não pode estourar fora de promise', () => {
   assert.match(js, /addEventListener\('error'/, "sem handler global de 'error'")
 })
 
+test('nada usa `canvas` fora de escopo (o bug do "canvas is not defined")', () => {
+  // Em Game.js, `canvas` só existe como parâmetro do construtor. Qualquer uso
+  // fora dele vira ReferenceError EM TEMPO DE CONSTRUÇÃO — ou seja, fora de
+  // promise, sem cair em catch nenhum. Daí a regra: só `this.canvas`.
+  const semComentarios = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+  const src = semComentarios(readUtf('../src/core/Game.js'))
+  const ctor = src.indexOf('constructor(')
+  const depoisDoConstrutor = src.slice(src.indexOf('#handlers()', ctor))
+  const usoSolto = depoisDoConstrutor.match(/(^|[^.\w'"`])canvas\b/g)
+  assert.equal(usoSolto, null, `referência solta a canvas fora do construtor: ${usoSolto}`)
+  for (const f of ['../src/core/Game.js', '../src/main.js', '../src/ui/HUD.js', '../src/ui/Menus.js']) {
+    const t = semComentarios(readUtf(f))
+    assert.ok(!/(^|[^.\w'"`])canvas\.addEventListener/.test(t), `${f} usa canvas.addEventListener sem this.`)
+  }
+})
+
+test('modo 2D desenha a planta quando não existe WebGL', async () => {
+  const { FallbackView } = await import('../src/ui/FallbackView.js')
+  const h = makeWorld()
+  const view = new FallbackView({ house: h, cell: 10 })
+  assert.ok(view.width > 0 && view.height > 0, 'view sem tamanho')
+
+  // contexto 2D falso: registra as operações, sem precisar de DOM/canvas.
+  const ops = []
+  const rec = (name) => (...args) => ops.push({ name, args })
+  const ctx = {
+    fillStyle: '', strokeStyle: '',
+    fillRect: rec('fillRect'), strokeRect: rec('strokeRect'),
+    beginPath: rec('beginPath'), arc: rec('arc'), fill: rec('fill'),
+    moveTo: rec('moveTo'), lineTo: rec('lineTo'), closePath: rec('closePath'),
+  }
+
+  const p = h.spawn.player
+  view.draw(ctx, {
+    player: { x: p.x, z: p.z, yaw: -Math.PI / 2 },
+    granny: { x: h.spawn.granny.x, z: h.spawn.granny.z },
+    pois: h.pois,
+  })
+
+  const retangulos = ops.filter((o) => o.name === 'fillRect')
+  assert.ok(retangulos.length > 20, `desenhou só ${retangulos.length} retângulos`)
+  // nada pode sair da área do canvas
+  for (const r of retangulos) {
+    const [x, y, w, hh] = r.args
+    assert.ok(x >= -1 && y >= -1 && x + w <= view.width + 1 && y + hh <= view.height + 1, `retângulo fora da área: ${r.args}`)
+  }
+  // jogador e Granny viram marcações (arco/triângulo)
+  assert.ok(ops.some((o) => o.name === 'arc'), 'sem marcador redondo (Granny/POI)')
+  assert.ok(ops.some((o) => o.name === 'moveTo'), 'sem marcador do jogador')
+  // o jogador tem que aparecer dentro da área
+  const px = view.toPixel(p.x, p.z)
+  assert.ok(px.x > 0 && px.x < view.width && px.y > 0 && px.y < view.height, 'jogador fora do mapa')
+})
+
 test('main.js sinaliza started/booted para o vigia', () => {
   const js = readUtf('../src/main.js')
   assert.match(js, /__escapeHouse\.started = true/, 'main.js nao marca started')

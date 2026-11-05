@@ -95,6 +95,7 @@ src/
     strings.js             TODO o texto em pt-BR
     HUD.js                 DOM puro (sem canvas 2D): crosshair, prompt, objetivo…
     Menus.js               telas MENU/OPÇÕES/PAUSA/CAUGHT/WIN/LOSE
+    FallbackView.js        renderizador 2D de emergência (sem WebGL)
   styles/main.css          linguagem visual
 
 tools/
@@ -318,6 +319,15 @@ ou resolve o cadeado, destranca e abre a porta.
 procedurais; `resume()` fica para o primeiro gesto do usuário (política de
 autoplay). `play(name, { position })` cria um `PannerNode` HRTF por disparo.
 `syncListener(camera)` atualiza posição/orientação do ouvinte.
+
+### `ui/FallbackView.js` — modo 2D (sem WebGL)
+
+Se `Engine` não consegue criar o contexto 3D, ele **não morre**: fica
+`headless` e o `Game` monta este renderizador, que desenha a própria grade do
+floor plan num canvas 2D (parede, chão, portas, POIs, jogador, Granny) com
+recorte de visão de 9 m. Mesma fonte de verdade da colisão: o que se vê é o
+que o jogo simula. `draw(ctx, state)` recebe o contexto por parâmetro, então é
+testável sem DOM.
 
 ### `ui/HUD.js` e `ui/Menus.js`
 

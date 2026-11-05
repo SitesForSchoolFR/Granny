@@ -698,3 +698,37 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- modo 2D (sem WebGL) ---------- */
+.fallback {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  image-rendering: pixelated;
+  background: #05060a;
+}
+
+.fallback-notice {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  max-width: min(560px, 92vw);
+  padding: 10px 14px;
+  z-index: 6;
+  background: rgba(10, 11, 14, 0.92);
+  border: 1px solid rgba(180, 51, 31, 0.5);
+  color: var(--ink);
+  font: 11px/1.5 var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.fallback-notice .btn {
+  padding: 6px 12px;
+  font-size: 10px;
+}

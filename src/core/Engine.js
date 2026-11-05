@@ -19,12 +19,18 @@ export class Engine {
     this.camera = new THREE.PerspectiveCamera(74, 1, 0.05, 90)
     this.camera.rotation.order = 'YXZ' // yaw/pitch sem gimbal weirdness
 
+    // Sem WebGL o jogo NAO morre: entra em modo headless e o Game desenha a
+    // planta baixa em 2D (src/ui/FallbackView.js). Melhor jogar numa vista de
+    // cima do que olhar para uma tela de erro.
     this.renderer = createRenderer(canvas)
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.05
-    this.renderer.shadowMap.enabled = QUALITY[quality].shadows
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.headless = !this.renderer
+    if (this.renderer) {
+      this.renderer.outputColorSpace = THREE.SRGBColorSpace
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+      this.renderer.toneMappingExposure = 1.05
+      this.renderer.shadowMap.enabled = QUALITY[quality].shadows
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    }
 
     this.clock = new THREE.Clock()
     this.accumulator = 0
@@ -54,23 +60,27 @@ export class Engine {
   setQuality(name) {
     const q = QUALITY[name] ?? QUALITY.medium
     this.qualityName = QUALITY[name] ? name : 'medium'
-    this.renderer.shadowMap.enabled = q.shadows
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pixelRatioCap))
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = q.shadows
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pixelRatioCap))
+    }
     this.resize()
     this.scene.fog = q.fog ? (this.scene.fog ?? new THREE.FogExp2(HOUSE.fogColor, HOUSE.fogDensity)) : null
     if (this.scene.fog) this.scene.fog.density = HOUSE.fogDensity
   }
 
   get maxAnisotropy() {
-    return this.renderer.capabilities.getMaxAnisotropy()
+    return this.renderer?.capabilities?.getMaxAnisotropy?.() ?? 1
   }
 
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth
     const h = this.canvas.clientHeight || window.innerHeight
     const q = QUALITY[this.qualityName] ?? QUALITY.medium
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pixelRatioCap))
-    this.renderer.setSize(w, h, false)
+    if (this.renderer) {
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.pixelRatioCap))
+      this.renderer.setSize(w, h, false)
+    }
     this.camera.aspect = w / Math.max(1, h)
     // FOV um pouco maior agachado: compensa a sensação de confinamento.
     this.camera.updateProjectionMatrix()
@@ -91,12 +101,24 @@ export class Engine {
     this.running = true
     this.clock.start()
     this.clock.getDelta() // descarta o delta acumulado antes do start
-    this.renderer.setAnimationLoop(() => this.step())
+    if (this.renderer) {
+      this.renderer.setAnimationLoop(() => this.step())
+      return
+    }
+    // headless: rAF direto, porque nao existe renderer para pilotar o loop.
+    const tick = () => {
+      if (!this.running) return
+      this.step()
+      this._raf = window.requestAnimationFrame(tick)
+    }
+    this._raf = window.requestAnimationFrame(tick)
   }
 
   stop() {
     this.running = false
-    this.renderer.setAnimationLoop(null)
+    if (this.renderer) this.renderer.setAnimationLoop(null)
+    if (this._raf) window.cancelAnimationFrame(this._raf)
+    this._raf = 0
   }
 
   step() {
@@ -113,7 +135,7 @@ export class Engine {
 
     const alpha = this.accumulator / GAME.fixedDt
     this.onRender?.(raw, alpha)
-    this.renderer.render(this.scene, this.camera)
+    this.renderer?.render(this.scene, this.camera)
 
     this.frame += 1
     this._fpsSamples += 1
@@ -129,7 +151,7 @@ export class Engine {
     this.stop()
     window.removeEventListener('resize', this.resize)
     document.removeEventListener('visibilitychange', this._onVisibility)
-    this.renderer.dispose()
+    this.renderer?.dispose()
   }
 }
 
@@ -158,5 +180,6 @@ function createRenderer(canvas) {
       console.warn('[engine] WebGLRenderer recusou', opts, '->', err?.message ?? err)
     }
   }
-  throw new Error(`WebGL indisponível: ${lastErr?.message ?? 'contexto não criado'}`)
+  console.warn('[engine] WebGL indisponível — seguindo em modo 2D (planta baixa):', lastErr?.message ?? 'contexto não criado')
+  return null
 }
