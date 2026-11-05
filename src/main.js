@@ -51,7 +51,8 @@ function escapeHtml(s) {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
 }
 
-// WebGL é o pré-requisito real do jogo — avisar antes de estourar stack trace.
+// WebGL NÃO é mais porteiro: sem ele o jogo entra em modo 2D (planta baixa)
+// em vez de morrer numa tela de erro. A checagem só avisa.
 function hasWebGL() {
   try {
     const c = document.createElement('canvas')
@@ -89,14 +90,15 @@ window.addEventListener('unhandledrejection', (e) => {
 })
 
 if (!hasWebGL()) {
-  fatal(new Error('WebGL indisponível neste navegador'))
-} else {
-  bootWithWatchdog()
-    .then(() => {
-      window.__escapeHouse.booted = true
-    })
-    .catch(fatal)
+  window.__escapeHouse.noWebGL = true
+  console.warn('[escape-house] WebGL indisponível — tentando modo 2D mesmo assim')
 }
+
+bootWithWatchdog()
+  .then(() => {
+    window.__escapeHouse.booted = true
+  })
+  .catch(fatal)
 
 // Tela de "clique para começar": o Pointer Lock exige gesto do usuário.
 window.addEventListener('keydown', (e) => {

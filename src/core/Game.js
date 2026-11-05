@@ -17,6 +17,7 @@ import { AudioSystem } from '../audio/AudioSystem.js'
 import { HUD } from '../ui/HUD.js'
 import { Menus } from '../ui/Menus.js'
 import { STR } from '../ui/strings.js'
+import { FallbackView } from '../ui/FallbackView.js'
 
 /** PRNG com seed — `?seed=123` deixa um run reproduzível (debug de regressão). */
 function mulberry32(seed) {
@@ -37,6 +38,10 @@ function mulberry32(seed) {
 export class Game {
   /** @param {{canvas: HTMLElement, hudRoot: HTMLElement, screensRoot: HTMLElement, params: URLSearchParams}} opts */
   constructor({ canvas, hudRoot, screensRoot, params }) {
+    // Guardamos o canvas: #wire() precisa dele e o parâmetro do construtor
+    // sai de escopo. Foi exatamente esse descuido que derrubou o jogo com
+    // "canvas is not defined" dentro do construtor (fora de qualquer promise).
+    this.canvas = canvas
     this.params = params
     this.debug = params.get('debug') === '1'
     this.seed = Number(params.get('seed') ?? Date.now() % 100000)
@@ -149,6 +154,7 @@ export class Game {
     this.engine.onFixedUpdate = (dt) => this.onFixedUpdate(dt)
     this.#stage('motor')
     this.engine.start()
+    if (this.engine.headless) this.#mountFallback()
     this.#stage('menu')
     this.sm.go(GameState.MENU)
     console.info('[escape-house] seed', this.seed, '| house', this.house.describe(), '| assets', this.assets.stats())
@@ -231,7 +237,7 @@ export class Game {
     this.bus.on('granny:catch', () => this.onCaught())
     // Clique no canvas re-trava o mouse (Chrome recusa requestPointerLock logo
     // depois do Esc; um clique do usuário é sempre um gesto válido).
-    canvas.addEventListener('click', () => {
+    this.canvas?.addEventListener('click', () => {
       if (this.sm.current === GameState.PLAYING && !this.input.mouse.locked) void this.input.requestLock()
     })
 
@@ -283,6 +289,29 @@ export class Game {
       a.needsUpdate = true
       this.grannyLine.computeLineDistances()
       this.grannyLine.visible = this.sm.current === GameState.PLAYING
+    }
+    if (this.fallback?.ctx) {
+      this.fallback.draw(this.fallback.ctx, {
+        player: { x: this.player.position.x, z: this.player.position.z, yaw: this.player.yaw },
+        granny: { x: this.granny.position.x, z: this.granny.position.z },
+        pois: this.house.pois,
+      })
+    }
+  }
+
+  /**
+   * Sem WebGL: monta a vista 2D da planta no lugar do canvas 3D.
+   * O jogo continua jogável — só muda o ponto de vista.
+   */
+  #mountFallback() {
+    try {
+      this.fallback = new FallbackView({ house: this.house })
+      this.fallback.mount(this.canvas?.parentElement ?? document.body)
+      this.canvas?.setAttribute('hidden', '')
+      this.hud.toast(STR.noWebGL.toast, 'warn')
+      console.warn('[escape-house] modo 2D (planta baixa): WebGL indisponível')
+    } catch (err) {
+      console.warn('[escape-house] fallback 2D falhou:', err?.message ?? err)
     }
   }
 

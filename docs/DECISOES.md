@@ -242,6 +242,14 @@ marcadas em `window.__escapeHouse.stage` que o vigia inline mostra na tela.
 Consequência prática: **todo caminho de falha tem que terminar em pixels**. Se
 um erro só aparece no console, ele não existe para quem joga no sofá.
 
+**c) WebGL não pode ser porteiro.**
+A checagem de WebGL bloqueava o boot com uma tela de erro. Em console/TV/PC
+antigo isso significa "não joga", mesmo dando para jogar: o jogo é uma
+simulação sobre uma grade, e a grade **desenha em 2D** (`ui/FallbackView.js`).
+Agora `hasWebGL()` só avisa; sem contexto 3D o `Engine` fica `headless`
+(sem `renderer.render`, loop por rAF) e o jogo segue em vista de cima — com
+HUD, áudio, furtividade e fuga intactos.
+
 ## 15. Aberturas e lacunas conhecidas
 
 Registrado para ninguém achar que é bug silencioso:

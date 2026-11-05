@@ -48,6 +48,10 @@ run), depois abra a porta da frente.
 Parâmetros de URL: `?debug` · `?seed=123` (run reproduzível) ·
 `?quality=low|medium|high` · `?diff=easy|normal|nightmare`.
 
+**Sem WebGL?** O jogo não trava numa tela de erro: ele entra em **modo 2D**
+(planta baixa vista de cima, desenhada em canvas) e segue jogável — mesma
+casa, mesmas regras, outro ponto de vista.
+
 ---
 
 ## Scripts

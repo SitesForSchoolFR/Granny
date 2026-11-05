@@ -62,4 +62,8 @@ export const STR = {
     sprint: 'correndo',
   },
   loading: ['acordando…', 'montando a casa…', 'escondendo as coisas…', 'apagando as luzes…'],
+  noWebGL: {
+    toast: 'sem WebGL — modo 2D (planta baixa)',
+    hint: 'WebGL não respondeu. O jogo seguiu em modo 2D; para tentar o 3D, recarregue em outro navegador.',
+  },
 }
