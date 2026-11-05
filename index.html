@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#07080a" />
+    <meta
+      name="description"
+      content="Escape House — jogo de terror e furtividade em primeira pessoa no navegador. Ache os itens, resolva os puzzles e saia da casa antes que ela te encontre."
+    />
+    <title>Escape House</title>
+    <link rel="stylesheet" href="/src/styles/main.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f13'/%3E%3Cpath d='M16 5l9 7v15H7V12z' fill='none' stroke='%23b4331f' stroke-width='2.4'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div id="game" class="stage">
+      <!-- Render alvo do Three.js. Nada de DOM dentro do canvas. -->
+      <canvas id="scene" class="stage__canvas"></canvas>
+
+      <!-- Camada HUD (DOM por performance: texto nítido, sem custo de redraw 3D) -->
+      <div id="hud" class="hud" hidden></div>
+
+      <!-- Camada de telas/menus -->
+      <div id="screens" class="screens"></div>
+
+      <!-- Loader, visível até o state machine sair de LOADING -->
+      <div id="loading" class="loading">
+        <div class="loading__inner">
+          <p class="loading__title">ESCAPE&nbsp;HOUSE</p>
+          <div class="loading__bar"><i id="loading-fill"></i></div>
+          <p class="loading__label" id="loading-label">acordando…</p>
+        </div>
+      </div>
+    </div>
+
+    <noscript>
+      <p style="color: #eee; font: 16px/1.5 system-ui; padding: 24px">
+        Este jogo precisa de JavaScript habilitado (e de WebGL).
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
