@@ -19,13 +19,7 @@ export class Engine {
     this.camera = new THREE.PerspectiveCamera(74, 1, 0.05, 90)
     this.camera.rotation.order = 'YXZ' // yaw/pitch sem gimbal weirdness
 
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: false,
-      powerPreference: 'high-performance',
-      stencil: false,
-      // preserveDrawingBuffer=false: deixa o browser otimizar o swap.
-    })
+    this.renderer = createRenderer(canvas)
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.05
@@ -137,4 +131,32 @@ export class Engine {
     document.removeEventListener('visibilitychange', this._onVisibility)
     this.renderer.dispose()
   }
+}
+
+
+/**
+ * Cria o WebGLRenderer com uma escada de tentativas.
+ *
+ * Por que nao uma chamada direta: em consoles (Xbox Series S, por exemplo) o
+ * pedido `powerPreference: 'high-performance'` pode ser recusado e derrubar a
+ * construcao inteira do jogo — e o erro estoura no construtor, ou seja, FORA
+ * da promise do boot, sem cair em nenhum catch. Caiamos para opcoes cada vez
+ * mais conservadoras antes de desistir.
+ */
+function createRenderer(canvas) {
+  const attempts = [
+    { antialias: false, powerPreference: 'high-performance', stencil: false },
+    { antialias: false, powerPreference: 'default', stencil: false, failIfMajorPerformanceCaveat: false },
+    { antialias: false, alpha: false, depth: true, stencil: false, powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
+  ]
+  let lastErr = null
+  for (const opts of attempts) {
+    try {
+      return new THREE.WebGLRenderer({ canvas, ...opts })
+    } catch (err) {
+      lastErr = err
+      console.warn('[engine] WebGLRenderer recusou', opts, '->', err?.message ?? err)
+    }
+  }
+  throw new Error(`WebGL indisponível: ${lastErr?.message ?? 'contexto não criado'}`)
 }

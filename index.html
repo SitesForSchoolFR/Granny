@@ -69,8 +69,9 @@
       )
       function reason() {
         var st = window.__escapeHouse
+        var stage = st.stage ? ' (etapa: <code>' + st.stage + '</code>)' : ''
         if (st.failed.length) return 'falhou: <code>' + st.failed.join(', ') + '</code>'
-        if (st.started) return 'o jogo carregou, mas travou no boot (veja o console)'
+        if (st.started) return 'o jogo carregou, mas o boot não terminou' + stage
         return 'o arquivo do jogo não carregou — 404 ou HTML em cache'
       }
 
@@ -84,7 +85,7 @@
         var p = document.createElement('p')
         p.id = 'loading-hint'
         p.className = 'loading__hint'
-        p.innerHTML = reason() + ' <button type="button" class="btn" id="loading-retry">recarregar sem cache</button>'
+        p.innerHTML = 'ainda carregando… ' + reason() + ' <button type="button" class="btn" id="loading-retry">recarregar sem cache</button>'
         inner.appendChild(p)
         var btn = document.getElementById('loading-retry')
         if (btn) {

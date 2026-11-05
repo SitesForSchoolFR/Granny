@@ -102,14 +102,30 @@ export class Game {
   }
 
   // ───────────────────────────────────────────────────────── boot
+  /**
+   * Marca a etapa atual do boot. Vai para `window.__escapeHouse.stage`, que o
+   * vigia inline do index.html mostra na tela: em console de videogame nao da
+   * para abrir o console, entao o diagnostico tem que caber no HTML.
+   */
+  #stage(name) {
+    if (typeof window !== 'undefined' && window.__escapeHouse) window.__escapeHouse.stage = name
+    this.menus?.setLabel?.(`carregando ${name}…`)
+    console.info(`[escape-house] boot: ${name}`)
+  }
+
   async boot() {
+    this.#stage('iniciando')
     this.sm.go(GameState.LOADING)
+    this.#stage('áudio')
     this.audio.ensureContext() // cria o contexto (suspenso) para o loader decodificar .mp3/.ogg
     this.assets.audioContext = this.audio.ctx ?? null
+    this.#stage('assets')
     await this.assets.load()
+    this.#stage('casa')
     this.house.build()
     this.engine.scene.add(this.house.group)
     this.house.attachPlayerLight(this.engine.camera)
+    this.#stage('navegação')
     this.nav = new NavGrid(this.house)
     this.granny = new GrannyAI({
       world: this.world,
@@ -131,7 +147,9 @@ export class Game {
     // Câmera de fundo do menu: um giro lento pelo corredor.
     this.engine.onRender = (dt, alpha) => this.onRender(dt, alpha)
     this.engine.onFixedUpdate = (dt) => this.onFixedUpdate(dt)
+    this.#stage('motor')
     this.engine.start()
+    this.#stage('menu')
     this.sm.go(GameState.MENU)
     console.info('[escape-house] seed', this.seed, '| house', this.house.describe(), '| assets', this.assets.stats())
   }

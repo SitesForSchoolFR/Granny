@@ -461,6 +461,27 @@ test('index.html tem o vigia de boot inline e os nós que ele usa', () => {
   assert.ok(iVigia > -1 && iModulo > -1 && iVigia < iModulo, 'o vigia tem que vir antes do <script type="module">')
 })
 
+test('[hidden] esconde de verdade e o loading é removido ao terminar', () => {
+  const css = readUtf('../src/styles/main.css')
+  // .loading é display:grid — sem uma regra de autor, `hidden` não esconde.
+  assert.match(css, /\[hidden\][\s\S]{0,80}?display:\s*none\s*!important/, 'CSS sem [hidden]{display:none!important}: node.hidden nao esconde .loading')
+  const menus = readUtf('../src/ui/Menus.js')
+  const hide = menus.slice(menus.indexOf('hideLoading()'))
+  assert.match(hide, /hidden = true/, 'hideLoading nao marca hidden')
+  assert.match(hide, /style\.display = 'none'/, 'hideLoading nao força display:none')
+  assert.match(hide, /\.remove\(\)/, 'hideLoading nao remove o nó (evita sobrepor o menu)')
+})
+
+test('construir o Game não pode estourar fora de promise', () => {
+  const js = readUtf('../src/main.js')
+  // new Game() cria o WebGLRenderer: se estourar aqui, nao existe .catch() que
+  // pegue — o try é a diferença entre tela de erro e loading infinito.
+  assert.match(js, /try \{[\s\S]{0,200}?new Game\([\s\S]{0,200}?\} catch \(err\) \{\s*fatal\(err\)/, 'new Game() fora de try/catch')
+  // Rede de segurança para o que escapar de qualquer promise.
+  assert.match(js, /addEventListener\('unhandledrejection'/, "sem handler de 'unhandledrejection'")
+  assert.match(js, /addEventListener\('error'/, "sem handler global de 'error'")
+})
+
 test('main.js sinaliza started/booted para o vigia', () => {
   const js = readUtf('../src/main.js')
   assert.match(js, /__escapeHouse\.started = true/, 'main.js nao marca started')

@@ -1,3 +1,13 @@
+/*
+ * [hidden] precisa vencer as regras de display dos componentes.
+ * Sem isto, `node.hidden = true` nao esconde .loading (que e display:grid):
+ * a folha do navegador manda `display:none`, mas qualquer regra de autor
+ * com `display` ganha dela. Resultado: tela de loading presa sobre o menu.
+ */
+[hidden] {
+  display: none !important;
+}
+
 /* ============================================================
    Escape House — HUD/telas em DOM.
    Sem framework: o build é estático e o CSS é um arquivo só
