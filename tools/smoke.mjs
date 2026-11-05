@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-const { HOUSE, PLAYER, NOISE, GRANNY } = await import('../src/core/config.js')
+const { HOUSE, PLAYER, NOISE, GRANNY, DEFAULT_BINDINGS } = await import('../src/core/config.js')
 const { CollisionWorld } = await import('../src/world/CollisionWorld.js')
 const { House } = await import('../src/world/House.js')
 const { NavGrid } = await import('../src/ai/NavGrid.js')
@@ -40,7 +40,7 @@ function test(name, fn) {
 /** Stub mínimo de InputManager: o PlayerController só usa esses 4 métodos. */
 function fakeInput(state = {}) {
   return {
-    state: { forward: false, back: false, left: false, right: false, sprint: false, crouch: false, ...state },
+    state: { forward: false, back: false, left: false, right: false, crouch: false, ...state },
     isDown(a) {
       return !!this.state[a]
     },
@@ -310,11 +310,261 @@ test('sorteio de loot é reproduzível com a mesma seed', () => {
   assert.equal(snap(3), snap(3))
 })
 
+// ─── Parte 2: spawn, controles e movimentação ──────────────────────────────
+console.log('parte 2 — spawn/controles/movimento')
+const { PlayerController: PC2 } = await import('../src/player/PlayerController.js')
+const { Inventory: Inv2 } = await import('../src/player/Inventory.js')
+const { PuzzleSystem: Puz2 } = await import('../src/systems/PuzzleSystem.js')
+const { EventBus: Bus2 } = await import('../src/core/events.js')
+
+function makePlayer(h, state = {}, { lying = false, at, yaw = -Math.PI / 2 } = {}) {
+  const p = new PC2({
+    camera: { position: { set() {} }, rotation: { set() {} } },
+    world: h.world,
+    input: fakeInput(state),
+    noise: new NoiseSystem(),
+  })
+  p.spawn(at ?? h.cellToWorld(10, 6), yaw, { lying })
+  return p
+}
+
+test('quarto inicial: pequeno, fechado, com o spawn e a chave', () => {
+  const h = makeWorld()
+  const spawn = h.world.cellOf(h.spawn.player.x, h.spawn.player.z)
+  const room = h.roomAt(h.spawn.player.x, h.spawn.player.z)
+  assert.equal(room?.id, 'start', `spawn fora do quarto inicial (${room?.id})`)
+  // 3x3 células = "quarto pequeno" do doc §1
+  const area = (room.x1 - room.x0) * (room.z1 - room.z0)
+  assert.ok(area <= 12, `quarto inicial grande demais: ${area} células`)
+
+  // a chave do micro-puzzle mora no próprio quarto
+  const keyPoi = h.pois.find((p) => p.item === 'key_room' || p.id === 'poi8')
+  assert.ok(keyPoi, 'sem POI da chave do quarto')
+  const kc = h.world.cellOf(keyPoi.point.x, keyPoi.point.z)
+  assert.equal(h.roomAt(keyPoi.point.x, keyPoi.point.z)?.id, 'start', 'a chave do quarto está fora dele')
+
+  // única saída é a porta trancada em (4,2)
+  const door = h.doors.get('door_4_2')
+  assert.ok(door, 'sem a porta do quarto inicial (4,2)')
+  assert.equal(door.locked, true, 'a porta do quarto deveria nascer trancada')
+  assert.equal(door.requires, 'key_room')
+  assert.ok(h.world.isBlocked(door.center.x, door.center.z, 1.2), 'vão da porta fechada não bloqueia')
+  void spawn
+  void kc
+})
+
+test('micro-puzzle: sem a chave não abre; com a chave, abre', () => {
+  const h = makeWorld()
+  const inv = new Inv2({})
+  const door = h.doors.get('door_4_2')
+
+  const semChave = door.unlockWith(inv)
+  assert.equal(semChave.ok, false)
+  assert.equal(semChave.item, 'key_room')
+  assert.equal(door.toggle().ok, false, 'porta trancada não deveria abrir')
+
+  // procurar no criado-mudo entrega a chave (mesmo com o sorteio da run rodando)
+  const busP = new Bus2()
+  const puz = new Puz2({ bus: busP, house: h, inventory: inv, rng: mulberry(5) })
+  puz.beginRun({ pois: h.pois, itemCount: 4 })
+  const drawer = h.pois.find((p) => p.item === 'key_room' || p.id === 'poi8')
+  const found = puz.search(drawer)
+  assert.equal(found.found?.item, 'key_room', 'o criado-mudo não entregou a chave')
+  inv.add('key_room', 'chave do quarto')
+
+  const comChave = door.unlockWith(inv)
+  assert.equal(comChave.ok, true, 'a chave do quarto não abriu a porta')
+  assert.equal(door.locked, false)
+  assert.equal(door.toggle().ok, true, 'destrancada, a porta deveria abrir')
+  assert.equal(h.world.isBlocked(door.center.x, door.center.z, 1.2), false, 'porta aberta ainda bloqueia o vão')
+})
+
+test('abertura completa: preso, acha a chave, abre a porta e sai do quarto', () => {
+  const h = makeWorld()
+  const inv = new Inv2({})
+  const puz = new Puz2({ bus: new Bus2(), house: h, inventory: inv, rng: mulberry(7) })
+  puz.beginRun({ pois: h.pois, itemCount: 4 })
+
+  const p = makePlayer(h, { forward: true }, { lying: true, at: h.spawn.player, yaw: HOUSE.spawnYaw })
+  const step = (seconds) => {
+    for (let i = 0; i < Math.round(seconds * 60); i += 1) p.update(1 / 60)
+  }
+
+  const roomId = () => h.roomAt(p.position.x, p.position.z)?.id ?? null
+  step(4) // acorda (1.5s de fade) e caminha para a porta do quarto
+  // Encostou na porta: pode estar no quarto ou no vão (que não pertence a
+  // nenhum cômodo), mas NUNCA do outro lado.
+  assert.notEqual(roomId(), 'bedroom', 'saiu do quarto com a porta trancada')
+  assert.ok(h.world.isBlocked(h.doors.get('door_4_2').center.x, h.doors.get('door_4_2').center.z, 1.2))
+
+  const drawer = h.pois.find((x) => x.item === 'key_room' || x.id === 'poi8')
+  assert.equal(puz.search(drawer).found?.item, 'key_room', 'o criado-mudo não tinha a chave')
+  inv.add('key_room', 'chave do quarto')
+
+  const door = h.doors.get('door_4_2')
+  assert.equal(door.unlockWith(inv).ok, true)
+  assert.equal(door.toggle().ok, true)
+
+  step(4) // agora atravessa
+  assert.equal(
+    roomId(),
+    'bedroom',
+    `não saiu do quarto: parou em ${p.position.x.toFixed(1)},${p.position.z.toFixed(1)}`,
+  )
+})
+
+test('doc §3: velocidades 3.0 andando / 1.2 agachado, sem sprint', () => {
+  const h = makeWorld()
+  const walk = makePlayer(h, { forward: true })
+  const start = { x: walk.position.x, z: walk.position.z }
+  for (let i = 0; i < 120; i += 1) walk.update(1 / 60) // 2s
+  const walkDist = Math.hypot(walk.position.x - start.x, walk.position.z - start.z)
+  // 2s a 3 m/s com rampa de aceleração: entre 5.4 e 6.0 m
+  assert.ok(walkDist > 5.4 && walkDist < 6.05, `andou ${walkDist.toFixed(2)}m em 2s (esperado ~6m)`)
+
+  const crouch = makePlayer(h, { forward: true, crouch: true })
+  const c0 = { x: crouch.position.x, z: crouch.position.z }
+  for (let i = 0; i < 120; i += 1) crouch.update(1 / 60)
+  const crouchDist = Math.hypot(crouch.position.x - c0.x, crouch.position.z - c0.z)
+  assert.ok(crouchDist > 2.0 && crouchDist < 2.5, `agachado andou ${crouchDist.toFixed(2)}m em 2s (esperado ~2.4m)`)
+  assert.ok(crouchDist < walkDist * 0.5, 'agachado deveria ser bem mais lento')
+
+  // sem sprint: nem no config, nem no controller
+  assert.equal(PLAYER.sprintSpeed, undefined, 'sprintSpeed voltou ao config (doc §2 proíbe)')
+  assert.equal(DEFAULT_BINDINGS.sprint, undefined, 'binding de sprint voltou (doc §2 proíbe)')
+  assert.equal('sprinting' in walk, false, 'PlayerController ainda tem sprinting')
+})
+
+test('doc §3: altura dos olhos 1.7 em pé / 0.9 agachado, lerp de 0.2s', () => {
+  const h = makeWorld()
+  const p = makePlayer(h, {})
+  assert.ok(Math.abs(p.eyeY - PLAYER.eyeHeight) < 1e-6, `olho em pé = ${p.eyeY} (esperado 1.7)`)
+
+  p.input = fakeInput({ crouch: true })
+  for (let i = 0; i < 12; i += 1) p.update(1 / 60) // 0.2s
+  assert.ok(Math.abs(p.eyeY - PLAYER.crouchEye) < 0.02, `agachou em 0.2s e o olho foi para ${p.eyeY} (esperado ~0.9)`)
+  // não pode ser instantâneo: no primeiro frame ainda está longe do alvo
+  const p2 = makePlayer(h, { crouch: true })
+  p2.update(1 / 60)
+  assert.ok(p2.eyeY > PLAYER.crouchEye + 0.1, 'a transição de agachar foi instantânea')
+})
+
+test('levantar emite postura válida para o HUD (sem "rising")', () => {
+  const h = makeWorld()
+  const bus = new Bus2()
+  const seen = []
+  bus.on('player:stance', ({ stance }) => seen.push(stance))
+  const p = new PC2({
+    camera: { position: { set() {} }, rotation: { set() {} } },
+    world: h.world,
+    input: fakeInput({}),
+    noise: new NoiseSystem(),
+    bus,
+  })
+  p.spawn(h.spawn.player, 0, { lying: true })
+  p.input = fakeInput({ forward: true })
+  for (let i = 0; i < 200; i += 1) p.update(1 / 60)
+  assert.ok(seen.includes('lying'), 'nunca avisou que estava deitado')
+  assert.deepEqual(
+    [...new Set(seen)],
+    ['lying', 'walk'],
+    `posturas inválidas no HUD: ${[...new Set(seen)].join(', ')}`,
+  )
+})
+
+test('doc §1: acorda deitado e levanta no primeiro input', () => {
+  const h = makeWorld()
+  const p = makePlayer(h, {}, { lying: true, at: h.spawn.player })
+  assert.equal(p.wake.phase, 'lying')
+  assert.ok(Math.abs(p.eyeY - PLAYER.lyingEye) < 1e-6, `olho deitado = ${p.eyeY} (esperado 0.3)`)
+  assert.equal(p.hasControl, false, 'não deveria ter controle antes do fade')
+
+  // segura o controle por wakeHoldTime mesmo com input
+  p.input = fakeInput({ forward: true })
+  const held = Math.ceil(PLAYER.wakeHoldTime * 60) - 6
+  for (let i = 0; i < held; i += 1) p.update(1 / 60)
+  const antes = { x: p.position.x, z: p.position.z }
+  assert.equal(p.wake.phase, 'lying', 'levantou antes da hora')
+  assert.ok(Math.hypot(p.position.x - antes.x, p.position.z - antes.z) < 1e-6, 'deitado não deveria andar')
+
+  // primeiro input depois do fade dispara a levantada de 0.5s
+  for (let i = 0; i < 12; i += 1) p.update(1 / 60)
+  assert.equal(p.wake.phase, 'rising', 'não começou a levantar')
+  for (let i = 0; i < 35; i += 1) p.update(1 / 60)
+  assert.equal(p.wake.phase, 'up', 'não terminou de levantar')
+  assert.ok(Math.abs(p.eyeY - PLAYER.eyeHeight) < 1e-6, `em pé o olho deveria ser 1.7, veio ${p.eyeY}`)
+  const depois = Math.hypot(p.position.x - antes.x, p.position.z - antes.z)
+  assert.ok(depois > 0.5, 'depois de levantar deveria conseguir andar')
+})
+
+test('doc §4: tábua barulhenta denuncia o passo', () => {
+  const h = makeWorld()
+  const board = h.world.boards[0]
+  assert.ok(board, 'nenhuma tábua registrada')
+  assert.deepEqual(h.world.boardAt(board.cx * 3 + 1.5, board.cz * 3 + 1.5), board)
+
+  const andarNormal = () => {
+    const p = makePlayer(h, {})
+    const noise = new NoiseSystem()
+    p.noise = noise
+    p.spawn(h.cellToWorld(board.cx, board.cz), -Math.PI / 2)
+    p.input = fakeInput({ forward: true })
+    for (let i = 0; i < 90; i += 1) p.update(1 / 60)
+    return noise.pending[0]?.loudness ?? 0
+  }
+  const naTabua = andarNormal()
+  assert.ok(naTabua >= PLAYER.noise.board, `passo na tábua saiu ${naTabua} (esperado >= ${PLAYER.noise.board})`)
+})
+
+test('doc §5/§6: pitch travado em 85°, interação a 2.5m, FOV 78', async () => {
+  const { Engine } = await import('../src/core/Engine.js')
+  const graus = (PLAYER.maxPitch * 180) / Math.PI
+  assert.ok(graus > 84 && graus <= 85.001, `pitch máximo = ${graus}° (doc pede ~85°)`)
+  assert.equal(PLAYER.interactRange, 2.5, 'alcance de interação deveria ser 2.5 (doc §6)')
+  // FOV vive no Engine (precisa de WebGL para instanciar): confere na fonte.
+  const src = readUtf('../src/core/Engine.js')
+  assert.match(src, /PerspectiveCamera\(78,/, 'FOV fora da faixa 75-80 do doc §5')
+  void Engine
+})
+
+test('mira não é bloqueada pelo próprio alvo (porta/saída)', () => {
+  const h = makeWorld()
+  const target = h.exits[0].door
+  // Em pé a 1.2-2.4m da porta, DENTRO da casa (o vazio depois da varanda é
+  // parede por definição): precisa ENXERGAR a porta para poder abri-la.
+  for (const back of [1.2, 1.5, 1.8, 2.1, 2.4]) {
+    const eye = { x: target.center.x, y: 1.7, z: target.center.z - back }
+    const p = { x: target.center.x, y: 1.15, z: target.center.z }
+    assert.equal(
+      h.world.hasLineOfSight(eye, p, { step: 0.45, stopShort: 0.3 }),
+      true,
+      `porta da frente invisível a ${back}m — o painel bloqueou a própria mira`,
+    )
+  }
+  // Uma parede de verdade continua bloqueando (não viramos um raio-X).
+  const a = h.cellToWorld(10, 6)
+  const b = h.cellToWorld(10, 9)
+  assert.equal(h.world.hasLineOfSight({ x: a.x, y: 1.6, z: a.z }, { x: b.x, y: 1.6, z: b.z }, { step: 0.45 }), false)
+})
+
+test('doc §2: bindings — E ou clique interagem, Tab/Q inventário, G larga, Esc pausa', () => {
+  assert.ok(DEFAULT_BINDINGS.interact.includes('KeyE'), 'E não interage')
+  assert.ok(DEFAULT_BINDINGS.interact.includes('Mouse0'), 'clique esquerdo não interage (doc §2)')
+  assert.deepEqual(DEFAULT_BINDINGS.inventory, ['Tab', 'KeyQ'])
+  assert.deepEqual(DEFAULT_BINDINGS.drop, ['KeyG'])
+  assert.deepEqual(DEFAULT_BINDINGS.pause, ['Escape'])
+  assert.ok(DEFAULT_BINDINGS.crouch.includes('ControlLeft'), 'Ctrl deveria agachar')
+  for (const dir of ['forward', 'back', 'left', 'right']) assert.ok(DEFAULT_BINDINGS[dir]?.length, `sem binding de ${dir}`)
+})
+
 // ─── player ───────────────────────────────────────────────────────────────
 console.log('player')
 test('andar gera ruído de passo proporcional à postura', () => {
   const h = makeWorld()
   const yawDownCorridor = -Math.PI / 2 // corredor: +X, sem parede na frente
+  // O spawn do jogador agora é o quarto inicial (3x3): pequeno demais para
+  // medir passada. Medimos no corredor.
+  const lane = h.cellToWorld(10, 6)
   const makePlayer = (noise, state) => {
     const p = new PlayerController({
       camera: { position: { set() {} }, rotation: { set() {} } },
@@ -322,13 +572,13 @@ test('andar gera ruído de passo proporcional à postura', () => {
       input: fakeInput(state),
       noise,
     })
-    p.spawn(h.spawn.player, yawDownCorridor)
+    p.spawn(lane, yawDownCorridor)
     return p
   }
 
   const walkNoise = new NoiseSystem()
   const walk = makePlayer(walkNoise, { forward: true })
-  const start = { x: h.spawn.player.x, z: h.spawn.player.z }
+  const start = { x: lane.x, z: lane.z }
   for (let i = 0; i < 120; i += 1) walk.update(1 / 60)
   const walkDist = Math.hypot(walk.position.x - start.x, walk.position.z - start.z)
   assert.ok(walkDist > 3, `andou só ${walkDist.toFixed(2)}m em 2s (esperava >3m)`)

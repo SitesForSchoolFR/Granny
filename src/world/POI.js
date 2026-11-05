@@ -23,6 +23,8 @@ export class POI {
     this.item = opts.item ?? null
     this.container = opts.container ?? null
     this.puzzle = opts.puzzle ?? null
+    /** Conteúdo garantido: o sorteio da run não pode mudar este item. */
+    this.fixed = !!opts.fixed
     this.point = opts.point.clone()
     this.world = opts.world
     this.assets = opts.assets ?? null
@@ -109,7 +111,9 @@ export class POI {
     const flat = Math.hypot(dx, dz) || 1
     const dot = (dx / flat) * fx + (dz / flat) * fz
     if (dot < this.minDot) return false
-    if (!this.world.hasLineOfSight(view, this.point, { step: 0.45 })) return false
+    // stopShort: o ponto do POI pode ser a própria porta (saída) — não deixe o
+    // painel dela bloquear a própria mira.
+    if (!this.world.hasLineOfSight(view, this.point, { step: 0.45, stopShort: 0.3 })) return false
     return { dist }
   }
 

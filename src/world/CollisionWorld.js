@@ -22,6 +22,8 @@ export class CollisionWorld {
     /** Células marcadas como sólidas no floor plan (paredes fixas). */
     /** @type {Set<string>} */
     this.solidCells = new Set()
+    /** @type {Array<{cx:number,cz:number,loudness:number,type?:string}>} */
+    this.boards = []
     this.dirty = true
     this.stats = { boxes: 0, solidCells: 0 }
     /** Limites da planta em células — fora disso é tratado como parede. */
@@ -58,6 +60,22 @@ export class CollisionWorld {
     box.enabled = enabled
     this.dirty = true
     return true
+  }
+
+  /**
+   * Marca uma célula como "tábua barulhenta" (doc Parte 2 §4).
+   * Pisar aqui denuncia o jogador mesmo agachado.
+   */
+  addBoard(cx, cz, loudness = 0.85, type = 'board') {
+    this.boards.push({ cx, cz, loudness, type })
+    return this.boards.length - 1
+  }
+
+  /** @returns {{cx:number,cz:number,loudness:number,type?:string}|null} */
+  boardAt(x, z) {
+    if (this.boards.length === 0) return null
+    const { cx, cz } = this.cellOf(x, z)
+    return this.boards.find((b) => b.cx === cx && b.cz === cz) ?? null
   }
 
   markSolid(cx, cz, solid) {
@@ -192,15 +210,24 @@ export class CollisionWorld {
    * @param {{x:number,y:number,z:number}} b
    * @param {{step?:number}} [opts]
    */
-  hasLineOfSight(a, b, { step = 0.32 } = {}) {
+  /**
+   * @param {{step?:number, stopShort?:number}} [opts]
+   *   `stopShort` = metros antes do alvo em que paramos de amostrar. Existe
+   *   porque o ALVO costuma ser a própria porta: o painel tem ~13cm e uma
+   *   amostra infeliz cai dentro dele e bloqueia a LOS — a porta (e a saída)
+   *   ficariam impossíveis de mirar de forma intermitente.
+   */
+  hasLineOfSight(a, b, { step = 0.32, stopShort = 0 } = {}) {
     this.rebuild()
     const dx = b.x - a.x
     const dy = b.y - a.y
     const dz = b.z - a.z
     const dist = Math.hypot(dx, dy, dz)
-    const samples = Math.max(1, Math.ceil(dist / step))
+    if (dist < 1e-4) return true
+    const span = Math.max(0.05, dist - stopShort)
+    const samples = Math.max(1, Math.ceil(span / step))
     for (let i = 1; i < samples; i += 1) {
-      const t = i / samples
+      const t = Math.min((i * step) / dist, span / dist)
       if (this.isBlocked(a.x + dx * t, a.z + dz * t, a.y + dy * t)) return false
     }
     return true

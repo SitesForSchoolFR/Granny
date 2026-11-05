@@ -2,7 +2,19 @@ import * as THREE from 'three'
 import { PLAYER } from '../core/config.js'
 import { Ev } from '../core/events.js'
 
-const STRIDE = { walk: 0.78, sprint: 1.06, crouch: 0.6 }
+const STRIDE = { walk: 0.78, crouch: 0.6 }
+/**
+ * Aproxima `current` de `target` em EXATAMENTE `seconds` (linear, sem overshoot
+ * e sem rabo exponencial). `span` é a distância TOTAL do trajeto possível —
+ * sem ele, o passo encolhe a cada frame e a transição nunca termina na hora.
+ */
+function approach(current, target, seconds, dt, span) {
+  if (seconds <= 0) return target
+  const rate = Math.abs(span ?? target - current) / seconds
+  const step = rate * dt
+  const diff = target - current
+  return Math.abs(diff) <= step ? target : current + Math.sign(diff) * step
+}
 
 /**
  * Controlador de primeira pessoa: mouse look (Pointer Lock), movimento com
@@ -41,8 +53,11 @@ export class PlayerController {
     this.pitch = 0
     this.height = PLAYER.height
     this.targetHeight = PLAYER.height
+    /** Altura dos olhos acima dos pés — é o que a câmera usa. */
+    this.eyeY = PLAYER.eyeHeight
     this.crouching = false
-    this.sprinting = false
+    /** 'lying' (acordando) → 'rising' (levantando) → 'up'. Doc Parte 2 §1. */
+    this.wake = { phase: 'up', hold: 0, rising: 0 }
     this.grounded = true
     this.lanternOn = false
     /** @type {object|null} POI de esconderijo atual */
@@ -60,11 +75,22 @@ export class PlayerController {
 
   /** Posição dos olhos, para câmera e raycasts de interação. */
   get eye() {
-    return this._tmp.set(this.position.x, this.position.y + this.height * PLAYER.eyeRatio + this.bobAmount, this.position.z)
+    return this._tmp.set(this.position.x, this.position.y + this.eyeY + this.bobAmount, this.position.z)
   }
 
   get stance() {
-    return this.crouching ? 'crouch' : this.sprinting ? 'sprint' : 'walk'
+    if (this.wake.phase !== 'up') return 'lying'
+    return this.crouching ? 'crouch' : 'walk'
+  }
+
+  /** Doc §1: o jogador só assume o controle depois do fade-in. */
+  get hasControl() {
+    return this.wake.phase === 'up' || this.wake.phase === 'rising'
+  }
+
+  /** Quanto da "levantada" já aconteceu (0 deitado, 1 em pé). */
+  get wakeProgress() {
+    return this.wake.phase === 'lying' ? 0 : this.wake.phase === 'up' ? 1 : this.wake.rising
   }
 
   /** true quando o jogador não pode ser visto (esconderijo cobrindo a mira). */
@@ -82,21 +108,38 @@ export class PlayerController {
     return !!this.hidingIn && this.hideDistance <= PLAYER.hideRadius
   }
 
-  /** @param {{x:number,z:number}} point @param {number} yawRadians */
-  spawn(point, yawRadians = 0) {
+  /**
+   * @param {{x:number,z:number}} point
+   * @param {number} yawRadians
+   * @param {{lying?: boolean}} [opts] `lying: true` = sequência de spawn do
+   *   doc §1: acorda deitado (olho a 0.3m) e só recebe controle depois do
+   *   fade-in; o primeiro input de movimento dispara a levantada de 0.5s.
+   */
+  spawn(point, yawRadians = 0, { lying = false } = {}) {
     const free = this.world.nearestFree(point.x, point.z, PLAYER.radius + 0.05)
     this.position.set(free.x, 0, free.z)
     this.velocity.set(0, 0, 0)
     this.yaw = yawRadians
     this.pitch = 0
     this.crouching = false
-    this.sprinting = false
     this.hidingIn = null
     this.targetHeight = PLAYER.height
     this.height = PLAYER.height
     this.bobAmount = 0
     this.distanceSinceStep = 0
+    this.wake = lying
+      ? { phase: 'lying', hold: PLAYER.wakeHoldTime, rising: 0 }
+      : { phase: 'up', hold: 0, rising: 1 }
+    this.eyeY = lying ? PLAYER.lyingEye : PLAYER.eyeHeight
     this.#applyCamera(0)
+  }
+
+  /** Deita o jogador de novo (usado ao reiniciar a run no quarto inicial). */
+  lieDown() {
+    this.wake = { phase: 'lying', hold: PLAYER.wakeHoldTime, rising: 0 }
+    this.eyeY = PLAYER.lyingEye
+    this.crouching = false
+    this.velocity.set(0, 0, 0)
   }
 
   setLantern(on) {
@@ -148,13 +191,15 @@ export class PlayerController {
     if (this.yaw > Math.PI) this.yaw -= Math.PI * 2
     if (this.yaw < -Math.PI) this.yaw += Math.PI * 2
 
+    // --- acordar (doc §1) --------------------------------------------------
+    this.#updateWake(dt, input)
+
     // --- postura -----------------------------------------------------------
     if (!this.hidingIn) this.crouching = input.isDown('crouch')
-    const wantSprint = input.isDown('sprint') && !this.crouching && input.isDown('forward')
-    this.sprinting = wantSprint && !this.hidingIn
     if (this.stance !== this._lastStance) {
+      const previous = this._lastStance
       this._lastStance = this.stance
-      this.bus?.emit(Ev.PLAYER_STANCE, { stance: this.stance, previous: this._lastStance })
+      this.bus?.emit(Ev.PLAYER_STANCE, { stance: this.stance, previous })
     }
 
     // --- input de movimento no plano --------------------------------------
@@ -170,7 +215,8 @@ export class PlayerController {
       dirZ /= len
     }
 
-    const speed = this.hidingIn ? 0 : this.sprinting ? PLAYER.sprintSpeed : this.crouching ? PLAYER.crouchSpeed : PLAYER.walkSpeed
+    // Deitado não anda: o controle só existe depois do fade (hasControl).
+    const speed = !this.hasControl || this.hidingIn ? 0 : this.crouching ? PLAYER.crouchSpeed : PLAYER.walkSpeed
     const targetX = dirX * speed
     const targetZ = dirZ * speed
     const rate = len > 0 ? PLAYER.accel : PLAYER.damping
@@ -205,9 +251,18 @@ export class PlayerController {
     this.#footsteps(moved, dt)
     this.#bob(dt)
 
-    // --- altura da cabeça --------------------------------------------------
+    // --- altura da cabeça (doc §3: lerp de ~0.2s, nunca instantâneo) --------
     this.targetHeight = this.crouching ? PLAYER.crouchHeight : PLAYER.height
-    this.height += (this.targetHeight - this.height) * Math.min(1, dt * 12)
+    const heightSpan = Math.abs(PLAYER.height - PLAYER.crouchHeight)
+    this.height = approach(this.height, this.targetHeight, PLAYER.crouchLerpTime, dt, heightSpan)
+    const rising = this.wake.phase === 'rising'
+    const eyeTarget = this.wake.phase === 'lying'
+      ? PLAYER.lyingEye
+      : this.crouching
+        ? PLAYER.crouchEye
+        : PLAYER.eyeHeight
+    const eyeSpan = rising ? Math.abs(PLAYER.eyeHeight - PLAYER.lyingEye) : Math.abs(PLAYER.eyeHeight - PLAYER.crouchEye)
+    this.eyeY = approach(this.eyeY, eyeTarget, rising ? PLAYER.wakeUpTime : PLAYER.crouchLerpTime, dt, eyeSpan)
 
     // --- lanternada --------------------------------------------------------
     if (input.wasPressed('lantern')) this.setLantern(!this.lanternOn)
@@ -221,23 +276,51 @@ export class PlayerController {
       stance: this.stance,
       yaw: this.yaw,
       concealed: this.concealed,
+      wake: this.wake.phase,
     })
   }
 
   #footsteps(moved, dt) {
     void dt
     if (moved <= 0 || this.hidingIn) return
-    const stride = this.sprinting ? STRIDE.sprint : this.crouching ? STRIDE.crouch : STRIDE.walk
+    const stride = this.crouching ? STRIDE.crouch : STRIDE.walk
     this.distanceSinceStep += moved
     if (this.distanceSinceStep < stride) return
     this.distanceSinceStep = 0
-    const loudness = this.crouching
-      ? PLAYER.noise.crouchFootstep
-      : this.sprinting
-        ? PLAYER.noise.sprint
-        : PLAYER.noise.walk
+    // Doc §4: piso marcado ("tábua barulhenta") denuncia o passo.
+    const board = this.world.boardAt?.(this.position.x, this.position.z)
+    if (board) {
+      const loudness = Math.max(board.loudness ?? PLAYER.noise.board, PLAYER.noise.walk)
+      this.#emitNoise(loudness, board.type ?? 'board')
+      this.audio?.creak?.({ position: this.position, gain: 0.9 })
+      return
+    }
+    const loudness = this.crouching ? PLAYER.noise.crouchFootstep : PLAYER.noise.walk
     this.#emitNoise(loudness, 'footstep')
-    this.audio?.footstep?.({ loudness, sprint: this.sprinting, position: this.position })
+    this.audio?.footstep?.({ loudness, crouch: this.crouching, position: this.position })
+  }
+
+  /**
+   * Sequência de spawn (doc §1): segura o controle por `wakeHoldTime` e, no
+   * primeiro input de movimento, levanta a câmera em `wakeUpTime`.
+   */
+  #updateWake(dt, input) {
+    const w = this.wake
+    if (w.phase === 'up') return
+    if (w.phase === 'lying') {
+      w.hold -= dt
+      if (w.hold > 0) return
+      const wantsToMove =
+        input.isDown('forward') || input.isDown('back') || input.isDown('left') || input.isDown('right')
+      if (!wantsToMove) return
+      w.phase = 'rising'
+      w.rising = 0
+      return
+    }
+    // rising
+    // O olho sobe de verdade no bloco de altura (eyeY), em wakeUpTime.
+    w.rising = Math.min(1, w.rising + dt / PLAYER.wakeUpTime)
+    if (w.rising >= 1) w.phase = 'up' // postura 'walk' é emitida pelo diff abaixo
   }
 
   #emitNoise(loudness, type) {
@@ -247,8 +330,8 @@ export class PlayerController {
 
   #bob(dt) {
     const moving = this.speed > 0.15 ? 1 : 0
-    this.bobPhase += dt * PLAYER.headBobFrequency * (this.sprinting ? 1.35 : 1) * moving
-    const amp = PLAYER.headBobAmplitude * (this.sprinting ? 1.5 : 1) * moving
+    this.bobPhase += dt * PLAYER.headBobFrequency * moving
+    const amp = PLAYER.headBobAmplitude * moving
     const targetBob = Math.sin(this.bobPhase) * amp * 0.5
     this.bobAmount += (targetBob - this.bobAmount) * Math.min(1, dt * 22)
   }
@@ -269,8 +352,9 @@ export class PlayerController {
     this.velocity.set(0, 0, 0)
     this.hidingIn = null
     this.crouching = false
-    this.sprinting = false
     this.noiseLevel = 0
+    this.wake = { phase: 'up', hold: 0, rising: 1 }
+    this.eyeY = PLAYER.eyeHeight
   }
 
   snapshot() {

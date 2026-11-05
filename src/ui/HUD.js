@@ -78,7 +78,7 @@ export class HUD {
     const b = this.bus
     b.on(Ev.HUD_TOAST, (p) => this.toast(p.text, p.kind))
     b.on('ui:toast', (p) => this.toast(p.text, p.kind))
-    b.on(Ev.POI_FOCUS, ({ poi }) => this.setFocus(poi))
+    b.on(Ev.POI_FOCUS, ({ poi, door }) => this.setFocus(poi, door))
     b.on(Ev.PUZZLE_PROGRESS, (p) => this.setObjectives(p))
     b.on(Ev.PUZZLE_SOLVED, () => this.flashScreen('good'))
     b.on('player:damaged', () => this.flashScreen('bad'))
@@ -102,16 +102,27 @@ export class HUD {
     this.debugPanel.hidden = !this.debug
   }
 
-  setFocus(poi) {
+  /** @param {object|null} poi @param {object|null} porta em foco (doc §6) */
+  setFocus(poi, door = null) {
     this.focus = poi ?? null
-    if (!poi) {
+    this.focusDoor = door ?? null
+    if (!poi && !door) {
       this.prompt.hidden = true
       this.crosshair.classList.remove('crosshair--focus')
       return
     }
     this.prompt.hidden = false
-    this.promptLabel.textContent = this.#promptFor(poi)
+    this.promptLabel.textContent = poi ? this.#promptFor(poi) : this.#promptForDoor(door)
     this.crosshair.classList.add('crosshair--focus')
+  }
+
+  #promptForDoor(door) {
+    const verb = door.isOpen ? STR.prompt.close : STR.prompt.open
+    if (door.locked) {
+      const what = door.requires ? ` — ${itemLabel(door.requires)}` : ''
+      return `${verb} ${door.label} (${STR.prompt.locked}${what})`
+    }
+    return `${verb} ${door.label}`
   }
 
   #promptFor(poi) {
@@ -149,9 +160,14 @@ export class HUD {
 
   setStance(stance) {
     const label =
-      stance === 'crouch' ? STR.status.crouch : stance === 'sprint' ? STR.status.sprint : stance === 'hidden' ? STR.status.hidden : ''
+      stance === 'crouch'
+        ? STR.status.crouch
+        : stance === 'lying'
+          ? STR.status.lying
+          : stance === 'hidden'
+            ? STR.status.hidden
+            : ''
     this.stance.textContent = label
-    this.stance.classList.toggle('stance--warn', stance === 'sprint')
   }
 
   setThreat(state) {

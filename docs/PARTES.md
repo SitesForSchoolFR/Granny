@@ -67,6 +67,34 @@ porão/andar superior?
 - `E` e `D` são poupados pelo fechamento automático da borda, os outros
   marcadores não.
 
+## Parte 2 (2/5) — spawn, controles e movimentação ✅
+
+O doc manda: acordar deitado num quarto pequeno e fechado, sem corrida, com
+agachar lento/silencioso e interação por raycast curto.
+
+| o que | onde | status |
+| --- | --- | --- |
+| Fade-in do preto + acordar deitado (olho 0.3 → 1.7 em 0.5s) | `#fadeIn()` + `PlayerController.#updateWake()` | ✅ |
+| Quarto inicial 3x3, saída única trancada por `key_room` | `floorplan.js` (`ROOMS.start`, `DOOR_LOCKS`) | ✅ |
+| Controles: WASD, mouse, Ctrl agachar, E/clique interagir, Tab/Q, G, Esc | `config.js` → `DEFAULT_BINDINGS` | ✅ |
+| Sem corrida, sem salto livre | `PLAYER` (sem `sprintSpeed`) | ✅ |
+| Cápsula + raycast de chão a cada frame | `CollisionWorld.groundHeight()` | ✅ |
+| Raycast de tábua barulhenta (alimenta a Parte 3) | `CollisionWorld.boardAt()` + `CREAKY_BOARDS` | ✅ |
+| FOV 78°, pitch ±85° | `Engine.js`, `PLAYER.maxPitch` | ✅ |
+| Mira: POIs **e portas**, prompt "abrir/porta (trancada)" | `Game.#updateFocus()`, `#interactDoor()` | ✅ |
+| Crosshair que muda de estado, HUD de capturas, toasts | `ui/HUD.js` | ✅ |
+| Salto só em pontos marcados ("vault") | — | ⬜ Parte 3, junto das janelas |
+
+**Armadilhas desta parte** (detalhadas em [DECISOES.md](./DECISOES.md) §16):
+
+- apagar um campo do `PLAYER` quebra silenciosamente outro sistema (já
+  aconteceu com `eyeRatio` → `NaN` na IA). Depois de mexer no config, rode
+  `npm run smoke`;
+- lerp de altura precisa de `span` fixo, senão vira decaimento exponencial e a
+  transição nunca termina no tempo prometido;
+- `input.endFrame()` tem que ser chamado uma vez por frame, senão `wasPressed`
+  repete a ação indefinidamente.
+
 ## Parte 3 — a Granny (IA)
 
 | o que | onde | já existe |

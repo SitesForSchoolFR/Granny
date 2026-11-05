@@ -24,20 +24,29 @@ npm run dev        # http://localhost:5173
 
 | tecla | ação |
 | --- | --- |
-| `W A S D` / setas | andar |
+| `W A S D` / setas | andar (3 m/s) |
 | mouse | olhar |
-| `Shift` | correr (faz barulho) |
-| `Ctrl` / `C` | agachar (anda devagar, quase silencioso) |
-| `E` | interagir: pegar, revistar, abrir porta, esconder |
+| `Ctrl` / `C` | agachar (1,2 m/s, quase silencioso) |
+| `E` ou clique esquerdo | interagir: pegar, revistar, abrir/destrancar porta, esconder |
+| `Tab` / `Q` | listar o inventário |
+| `G` | largar o item da mão |
 | `F` / `Espaço` | usar item da mão |
-| `Q` | largar |
 | `L` | lanterna |
-| `Tab` | listar o inventário |
 | `M` | onde estou |
-| `Esc` / `P` | pausar |
+| `Esc` | pausar e soltar o mouse |
 | `` ` `` | overlay de debug (FPS, estado da IA) |
 
-**Regra de ouro:** correr chama atenção, agachar não. A Granny ouve passos e
+**Não existe tecla de correr, de propósito.** A velocidade é fixa e moderada; a
+decisão é *risco*, não destreza: andar é mais rápido e barulhento, agachar é
+lento e seguro. Saltar também não existe livremente — só nos pontos marcados,
+e isso fica para a Parte 3.
+
+O começo: você acorda **deitado** num quarto pequeno e trancado. Levanta no
+primeiro comando de movimento. A saída é uma porta com cadeado — a chave está
+no criado-mudo do próprio quarto. É o primeiro micro-puzzle: antes de sair,
+você já interagiu com o mundo uma vez.
+
+**Regra de ouro:** andar chama atenção, agachar não. A Granny ouve passos e
 vê dentro de um cone — quebrar a linha de visão e se esconder funciona; ficar
 parado em campo aberto, não.
 

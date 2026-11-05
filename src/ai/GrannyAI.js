@@ -323,7 +323,8 @@ export class GrannyAI {
 
     // Captura.
     const dist = Math.hypot(player.position.x - this.position.x, player.position.z - this.position.z)
-    const eye = player.position.y + player.height * PLAYER.eyeRatio
+    // Altura dos olhos do jogador (doc Parte 2 §3: 1.7 em pé, 0.9 agachado).
+    const eye = player.position.y + (player.eyeY ?? PLAYER.eyeHeight)
     const closeEnough = dist < GRANNY.catchDistance && Math.abs(eye - (this.position.y + GRANNY.height)) < 2.2
     if (closeEnough && this.state === AIState.CHASE && this.spotTime > GRANNY.reactTime) {
       this.bus?.emit('granny:catch', { distance: dist })

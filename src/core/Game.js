@@ -1,4 +1,4 @@
-import { DIFFICULTY, GAME, HOUSE, QUALITY, SAVE } from './config.js'
+import { DIFFICULTY, GAME, HOUSE, PLAYER, QUALITY, SAVE } from './config.js'
 import { Engine } from './Engine.js'
 import { EventBus, Ev } from './events.js'
 import { GameState, StateMachine } from './state.js'
@@ -11,7 +11,7 @@ import { PlayerController } from '../player/PlayerController.js'
 import { Inventory } from '../player/Inventory.js'
 import { NoiseSystem } from '../systems/NoiseSystem.js'
 import { PuzzleSystem } from '../systems/PuzzleSystem.js'
-import { ITEMS } from '../systems/items.js'
+import { ITEMS, itemLabel } from '../systems/items.js'
 import { SaveSystem } from '../systems/SaveSystem.js'
 import { AudioSystem } from '../audio/AudioSystem.js'
 import { HUD } from '../ui/HUD.js'
@@ -92,6 +92,8 @@ export class Game {
     this.attemptsLeft = GAME.maxCaught
     this.attemptsMade = 0
     this.focusedPoi = null
+    /** @type {object|null} porta sob a mira (doc Parte 2 §6). */
+    this.focusedDoor = null
     this.catchCooldown = 0
     this.lastNoise = null
     this.running = false
@@ -273,6 +275,10 @@ export class Game {
   }
 
   onRender(dt) {
+    // Sem isto, `wasPressed()` continua true em todos os frames seguintes: um
+    // toque em E interagiria 60x por segundo. Limpa no fim do frame, depois de
+    // todos os passos fixos já terem lido o input.
+    this.input.endFrame()
     this.audio.syncListener(this.engine.camera)
     this.audio.update(dt)
     for (const poi of this.house.pois) poi.update(dt, this.elapsed)
@@ -331,22 +337,101 @@ export class Game {
     return Math.atan2(dx * rx + dz * rz, dx * fx + dz * fz)
   }
 
+  /**
+   * O que está sob a mira (doc §6: raycast do centro da tela até 2.5m).
+   * POIs e portas competem; ganha o mais perto.
+   */
   #updateFocus() {
     const eye = this.player.eye.clone()
     const view = { x: eye.x, y: eye.y, z: eye.z, yaw: this.player.yaw }
-    let best = null
-    let bestDist = Infinity
-    for (const poi of this.house.pois) {
-      const f = poi.isFocused(view)
-      if (f && f.dist < bestDist) {
-        best = poi
-        bestDist = f.dist
+    const look = this.player.lookDir()
+
+    let poi = null
+    let poiDist = Infinity
+    for (const p of this.house.pois) {
+      const f = p.isFocused(view)
+      if (f && f.dist < poiDist) {
+        poi = p
+        poiDist = f.dist
       }
     }
-    if (best !== this.focusedPoi) {
-      this.focusedPoi = best
-      this.bus.emit(Ev.POI_FOCUS, { poi: best })
+
+    let door = null
+    let doorDist = Infinity
+    for (const d of this.house.doors.values()) {
+      const f = this.#doorFocus(d, eye, look)
+      if (f && f.dist < doorDist) {
+        door = d
+        doorDist = f.dist
+      }
     }
+
+    const usePoi = poi && (!door || poiDist <= doorDist)
+    const nextPoi = usePoi ? poi : null
+    const nextDoor = usePoi ? null : door
+    if (nextPoi !== this.focusedPoi || nextDoor !== this.focusedDoor) {
+      this.focusedPoi = nextPoi
+      this.focusedDoor = nextDoor
+      this.bus.emit(Ev.POI_FOCUS, { poi: nextPoi, door: nextDoor })
+    }
+  }
+
+  /** Porta em foco? Alcance + cone + linha de visão. */
+  #doorFocus(door, eye, look) {
+    const p = door.focusPoint
+    const dx = p.x - eye.x
+    const dy = p.y - eye.y
+    const dz = p.z - eye.z
+    const dist = Math.hypot(dx, dy, dz)
+    // Porta é grande: um pouco mais de folga que o POI.
+    if (dist > PLAYER.interactRange + 0.7) return null
+    const flat = Math.hypot(dx, dz) || 1
+    if ((look.x * dx + look.z * dz) / flat < 0.35) return null
+    if (!this.world.hasLineOfSight(eye, p, { step: 0.45, stopShort: 0.3 })) return null
+    return { dist }
+  }
+
+  /**
+   * Fade-in do preto (doc §1): a run começa no escuro e clareia.
+   * Feito no DOM porque o canvas 3D ainda está montando a cena.
+   */
+  #fadeIn(seconds = PLAYER.wakeHoldTime) {
+    const node = typeof document !== 'undefined' ? document.getElementById('fade') : null
+    if (!node) return
+    node.style.transition = 'none'
+    node.style.opacity = '1'
+    window.requestAnimationFrame(() => {
+      node.style.transition = `opacity ${seconds}s ease-out`
+      node.style.opacity = '0'
+    })
+  }
+
+  /** Abrir/fechar/destrancar uma porta (doc §6 — portas são interagíveis). */
+  #interactDoor(door) {
+    if (door.locked) {
+      const res = door.unlockWith(this.inventory)
+      if (!res.ok) {
+        const what = res.item ? itemLabel(res.item) : 'a tranca'
+        this.hud.toast(`${STR.prompt.locked} — ${STR.prompt.missing} ${what}`, 'warn')
+        this.audio.play('denied', { position: door.center, gain: 0.5 })
+        this.noise.emit({ position: door.center, loudness: 0.22, type: 'denied', source: 'player' })
+        return
+      }
+      this.hud.toast(`${STR.prompt.unlocked}: ${itemLabel(res.item)}`, 'good')
+      this.audio.play('unlock', { position: door.center, gain: 0.8 })
+      this.noise.emit({ position: door.center, loudness: 0.5, type: 'unlock', source: 'player' })
+      this.puzzles.solve(`door:${door.id}`)
+      return
+    }
+    const res = door.toggle()
+    if (!res.ok) {
+      this.hud.toast(res.reason === 'blocked' ? 'algo está no vão' : STR.prompt.locked, 'warn')
+      this.audio.play('denied', { position: door.center, gain: 0.4 })
+      return
+    }
+    this.noise.emit({ position: door.center, loudness: res.loudness, type: 'door', source: 'player' })
+    this.audio.play(res.open ? 'doorOpen' : 'doorClose', { position: door.center, gain: 0.7 })
+    this.bus.emit(Ev.POI_INTERACT, { door: door.id, ...res })
   }
 
   #handleActions() {
@@ -398,6 +483,7 @@ export class Game {
   }
 
   interact() {
+    if (this.focusedDoor && !this.focusedPoi) return this.#interactDoor(this.focusedDoor)
     const poi = this.focusedPoi
     if (!poi) return
     const res = poi.interact({
@@ -447,9 +533,11 @@ export class Game {
     this.setQuality(this.settings.quality)
   }
 
-  respawn({ keepProgress = true } = {}) {
+  respawn({ keepProgress = true, lying = true } = {}) {
     void keepProgress
-    this.player.spawn(this.house.spawn.player, HOUSE.spawnYaw)
+    // Doc §1: acorda deitado no quarto inicial e levanta no primeiro input.
+    this.player.spawn(this.house.spawn.player, HOUSE.spawnYaw, { lying })
+    if (lying) this.#fadeIn()
     this.granny.spawn(this.house.spawn.granny)
     this.noise.reset()
     this.catchCooldown = 0.8

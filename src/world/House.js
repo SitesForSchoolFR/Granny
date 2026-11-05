@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { HOUSE } from '../core/config.js'
-import { MAP_ROWS, MAP_WIDTH, POI_SLOTS, PROPS, ROOMS } from './floorplan.js'
+import { CREAKY_BOARDS, DOOR_LOCKS, MAP_ROWS, MAP_WIDTH, POI_SLOTS, PROPS, ROOMS } from './floorplan.js'
 import { CollisionWorld } from './CollisionWorld.js'
 import { Door } from './Doors.js'
 import { POI } from './POI.js'
@@ -98,6 +98,7 @@ export class House {
     this.#floorAndCeiling()
     this.#walls()
     this.#props()
+    this.#boards()
     this.#spawnsAndPois()
     this.#lights()
     return this.group
@@ -224,13 +225,18 @@ export class House {
         const isExit = ch === 'E'
         // Swing para o lado "fechado"/interior, assim a folha não atravessa a parede.
         const swingSign = spanAxis === 'x' ? (this.isSolid(cx, cz + 1) ? -1 : 1) : this.isSolid(cx + 1, cz) ? -1 : 1
+        // Tranca por item: DOOR_LOCKS do floor plan (ex.: o cadeado simples
+        // do quarto inicial, primeiro micro-puzzle — doc Parte 2 §1).
+        const requires = DOOR_LOCKS[`${cx},${cz}`] ?? null
         const door = new Door({
           id: isExit ? 'front' : `door_${cx}_${cz}`,
           center: c,
           spanAxis,
           world: this.world,
           material: isExit ? this.mat.exit : this.mat.door,
-          locked: isExit, // a porta da frente só abre com a fuga liberada
+          locked: isExit || !!requires, // a porta da frente só abre com a fuga liberada
+          requires,
+          cell: { cx, cz },
           label: isExit ? 'porta da frente' : 'porta',
           swingSign,
         })
@@ -241,6 +247,14 @@ export class House {
         this.cells[cz][cx] = '.'
         if (isExit) this.exits.push({ door, cell: { cx, cz }, world: c })
       }
+    }
+  }
+
+  /** Tábuas barulhentas (doc §4): o piso denuncia quem pisa. */
+  #boards() {
+    for (const b of CREAKY_BOARDS) {
+      if (!this.isWalkable(b.cx, b.cz)) continue
+      this.world.addBoard(b.cx, b.cz, b.loudness, 'board')
     }
   }
 
@@ -263,6 +277,7 @@ export class House {
           kind: spec.kind,
           label: spec.label ?? spec.kind,
           item: spec.item,
+          fixed: spec.fixed,
           container: spec.container,
           puzzle: spec.puzzle,
           point: new THREE.Vector3(c.x, 1.15, c.z),

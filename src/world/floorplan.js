@@ -20,12 +20,17 @@
  */
 export const MAP_ROWS = [
   '#####################',
-  '#.........#.........#',
-  '#....1....#....2....#',
-  '#.........#.........#',
-  '###D###########D#####',
+  // Quarto inicial (x1-3, z1-3): 3x3 células, fechado. A única saída é a
+  // porta trancada em (4,2) — primeiro micro-puzzle do jogo (doc §1).
+  '#.8.#.....#.........#',
+  // S = onde acorda. A porta do quarto (D) fica NA MESMA LINHA do spawn:
+  // andar para frente já encara o vão, em vez de bater na quina.
+  '#.S.D..1..#....2....#',
+  '#...#.....#.........#',
+  '#######D#######D#####',
   '#...................#',
-  '#..S..........G.....#',
+  // S = spawn do jogador (quarto inicial); G = spawn da Granny (corredor).
+  '#.............G.....#',
   '###D#######D#####D###',
   '#.........#.........#',
   '#....3....#....4....#',
@@ -39,7 +44,8 @@ export const MAP_ROWS = [
 
 /** Cômodos (x0/z0 inclusivos, x1/z1 exclusivos) — usados por patrulha da IA e textos de objetivo. */
 export const ROOMS = [
-  { id: 'bedroom', label: 'Quarto', x0: 1, x1: 10, z0: 1, z1: 4 },
+  { id: 'start', label: 'Quarto inicial', x0: 1, x1: 4, z0: 1, z1: 4 },
+  { id: 'bedroom', label: 'Quarto', x0: 5, x1: 10, z0: 1, z1: 4 },
   { id: 'study', label: 'Escritório', x0: 11, x1: 20, z0: 1, z1: 4 },
   { id: 'hall', label: 'Corredor', x0: 1, x1: 20, z0: 5, z1: 7 },
   { id: 'kitchen', label: 'Cozinha', x0: 1, x1: 10, z0: 8, z1: 11 },
@@ -66,6 +72,9 @@ export const POI_SLOTS = {
   // de colisão o empurraria para fora do esconderijo.
   6: { kind: 'hiding', label: 'fundo da despensa' },
   7: { kind: 'container', container: 'cabinet', label: 'armário do banheiro' },
+  // `fixed`: o PuzzleSystem NÃO realoca este item no sorteio da run — a chave
+  // do quarto inicial tem que estar sempre no quarto inicial.
+  8: { kind: 'container', container: 'drawer', label: 'criado-mudo', item: 'key_room', fixed: true },
   S: { kind: 'spawn', who: 'player' },
   G: { kind: 'spawn', who: 'granny' },
   E: { kind: 'exit', label: 'porta da frente' },
@@ -73,6 +82,9 @@ export const POI_SLOTS = {
 
 /** Móveis: célula central, tamanho em célula e altura. Bloqueiam visão e corpo. */
 export const PROPS = [
+  // Quarto inicial: a cama de onde o jogador acorda (doc Parte 2 §1); o
+  // criado-mudo ao lado é o POI_SLOTS[8], onde a chave sempre está.
+  { room: 'start', at: [0, 0], size: [1.4, 0.9], height: 0.5, label: 'cama' },
   { room: 'bedroom', at: [2, 1], size: [2, 1.2], height: 0.55, label: 'cama' },
   { room: 'bedroom', at: [7, 1], size: [1, 1], height: 1.7, label: 'guarda-roupa' },
   { room: 'study', at: [13, 2], size: [2, 1], height: 0.78, label: 'escrivaninha' },
@@ -88,3 +100,23 @@ export const PROPS = [
 
 export const MAP_WIDTH = Math.max(...MAP_ROWS.map((r) => r.length))
 export const MAP_HEIGHT = MAP_ROWS.length
+
+/**
+ * Trancas por célula de porta: { 'cx,cz': itemQueAbre }.
+ * A do quarto inicial é o primeiro micro-puzzle (doc §1); a da frente continua
+ * sendo a condição de vitória, resolvida pelo PuzzleSystem.
+ */
+export const DOOR_LOCKS = Object.freeze({
+  '4,2': 'key_room',
+})
+
+/**
+ * Tábuas barulhentas (doc §4): pisar aqui denuncia o jogador mesmo agachado.
+ * Parte 3 detalha como a Granny interpreta o ruído; aqui só a marcação.
+ */
+export const CREAKY_BOARDS = Object.freeze([
+  { cx: 6, cz: 6, loudness: 0.85 },
+  { cx: 12, cz: 6, loudness: 0.8 },
+  { cx: 9, cz: 9, loudness: 0.9 },
+  { cx: 11, cz: 13, loudness: 0.75 },
+])
