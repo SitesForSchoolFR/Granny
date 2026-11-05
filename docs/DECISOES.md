@@ -217,13 +217,39 @@ O marcador `6` do floor plan está na despensa por isso.
 `GRANNY.concealSafeDistance` (1.6 m) — esconderijo bom é abrigo, não escudo
 absoluto.
 
-## 14. Aberturas e lacunas conhecidas
+## 14. Duas armadilhas que só aparecem em produção
+
+Registrado porque custaram um deploy cada uma, e nenhuma das duas é visível em
+`npm run dev`.
+
+**a) `node.hidden = true` não esconde nada quando o CSS declara `display`.**
+A folha do navegador diz `[hidden] { display: none }`, mas **qualquer regra de
+autor com `display` ganha dela**. Como `.loading` é `display: grid`, a tela de
+loading continuava lá depois de escondida — por cima do menu, com o texto
+"acordando…" intacto. Sintoma: parece que o boot travou; na verdade o jogo
+tinha terminado. Correção: `[hidden] { display: none !important }` no CSS e
+`hideLoading()` remove o nó do DOM.
+
+**b) Erro no construtor não cai em `catch`.**
+`new Game()` cria o `WebGLRenderer`. Se isso estoura, o erro acontece **antes**
+de existir promise — `boot().catch(fatal)` nunca é alcançado e o jogo fica
+preso no loading sem mensagem nenhuma. Em desktop a pessoa abre o console; num
+console de videogame, não existe console. Correção: `new Game()` dentro de
+`try/catch`, handlers globais de `error` e `unhandledrejection`, o renderer
+com escada de opções (de `high-performance` até `low-power`), e etapas do boot
+marcadas em `window.__escapeHouse.stage` que o vigia inline mostra na tela.
+
+Consequência prática: **todo caminho de falha tem que terminar em pixels**. Se
+um erro só aparece no console, ele não existe para quem joga no sofá.
+
+## 15. Aberturas e lacunas conhecidas
 
 Registrado para ninguém achar que é bug silencioso:
 
 | lacuna | onde | quem resolve |
 | --- | --- | --- |
 | `Door.toggle()` não cancela se o vão estiver ocupado — a porta fecha "atravessando" o jogador, que é empurrado pela resolução | `world/Doors.js` | Parte 2 |
+| Boot tem etapas marcadas, mas nenhuma barra de progresso real (manifesto vazio = 0 assets) | `core/Game.js`, `core/AssetLoader.js` | quando existir arte de verdade |
 | `GrannyAI` patrulha sem waypoints por cômodo e não tem `reset()` | `ai/GrannyAI.js` | Parte 3 |
 | Interpolação de render (`alpha`) não usada | `core/Engine.js` | Parte 5 (polish) |
 | Puzzles além do cadeado da saída (`kind: 'puzzle'`) são no-op | `systems/PuzzleSystem.js`, `world/POI.js` | Parte 4 |

@@ -200,6 +200,12 @@ export class Menus {
     return wrap
   }
 
+  /** Só o texto da tela de loading (usado pelas etapas do boot). */
+  setLabel(text) {
+    const node = document.getElementById('loading-label')
+    if (node && text) node.textContent = text
+  }
+
   /** Loading (tela própria, fora da máquina de estados visual). */
   setLoading(progress, label) {
     const fill = document.getElementById('loading-fill')
@@ -213,8 +219,12 @@ export class Menus {
     if (!node) return
     node.classList.add('is-done')
     setTimeout(() => {
-      node.hidden = true
       node.classList.remove('is-done')
+      // hidden + display: o atributo sozinho nao vence `.loading{display:grid}`
+      // (regra de autor > folha do navegador), entao garantimos os dois.
+      node.hidden = true
+      node.style.display = 'none'
+      node.remove()
     }, 420)
   }
 }

@@ -17,18 +17,31 @@ window.__escapeHouse.started = true
 // bundle carregou e o problema está no boot (não no caminho do arquivo).
 console.info('[escape-house] bundle carregado em', location.href)
 
-const game = new Game({ canvas, hudRoot, screensRoot, params })
+// O construtor do Game cria o WebGLRenderer — e um erro aqui estoura ANTES de
+// existir promise, ou seja, nao cai em nenhum .catch(). Construir dentro do
+// try e a diferenca entre "tela de erro legivel" e "loading infinito".
+let game
+try {
+  game = new Game({ canvas, hudRoot, screensRoot, params })
+} catch (err) {
+  fatal(err)
+  throw err
+}
 window.game = game // console: game.debugText(), game.save.snapshot(...)
 
 function fatal(err) {
   console.error('[escape-house] boot falhou', err)
   const box = document.getElementById('loading')
   if (!box) return
+  const stage = window.__escapeHouse?.stage
+  box.hidden = false
+  box.style.display = ''
   box.classList.add('is-error')
   box.innerHTML = `
     <div class="loading__inner">
       <p class="loading__title">A CASA NÃO ABRIU</p>
       <p class="loading__label">${escapeHtml(String(err?.message ?? err))}</p>
+      ${stage ? `<p class="loading__hint">etapa: <code>${escapeHtml(stage)}</code></p>` : ''}
       <p class="loading__hint">WebGL desabilitado, driver antigo ou build quebrado.
       Tente <code>?quality=low</code> na URL.</p>
     </div>`
@@ -62,6 +75,18 @@ function bootWithWatchdog() {
   })
   return Promise.race([game.boot(), timeout]).finally(() => window.clearTimeout(timer))
 }
+
+// Rede de segurança: qualquer exceção que escape (módulo, handler de evento,
+// promise sem catch) vira tela de erro em vez de loading parado. Em console de
+// videogame nao existe "abrir o console", entao a mensagem tem que ir para a tela.
+window.addEventListener('error', (e) => {
+  if (window.__escapeHouse?.booted) return
+  fatal(e.error ?? new Error(e.message || 'erro desconhecido'))
+})
+window.addEventListener('unhandledrejection', (e) => {
+  if (window.__escapeHouse?.booted) return
+  fatal(e.reason ?? new Error('promise rejeitada sem tratamento'))
+})
 
 if (!hasWebGL()) {
   fatal(new Error('WebGL indisponível neste navegador'))
