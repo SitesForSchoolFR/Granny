@@ -5,7 +5,7 @@ _Granny_. Você acorda trancado numa casa. Explore, recolha itens, resolva os
 puzzles e **saia** antes que ela encontre você — quantas vezes forem
 necessárias, até o limite de tentativas. Sem armas: só furtividade e raciocínio.
 
-- **Jogar:** <https://sitesforschoolfr.github.io/Granny-Inspiration-IG/>
+- **Jogar:** <https://sitesforschoolfr.github.io/Granny/>
 - **Stack:** Three.js + Vite, JavaScript puro (ESM), sem framework.
 - **Status:** Parte 1/5 do design doc implementada. Partes 2–5 têm encaixes
   reservados — ver [`docs/PARTES.md`](docs/PARTES.md).
@@ -56,7 +56,7 @@ Parâmetros de URL: `?debug` · `?seed=123` (run reproduzível) ·
 | --- | --- |
 | `npm run dev` | servidor de desenvolvimento (Vite) |
 | `npm run build` | build de produção para `dist/` |
-| `npm run preview` | serve `dist/` no caminho do Pages (`/Granny-Inspiration-IG/`) |
+| `npm run preview` | serve `dist/` no caminho do Pages (`/Granny/`) |
 | `npm run smoke` | 27 testes de lógica headless (sem navegador) |
 | `npm run check` | `smoke` + `build` — o que o CI roda |
 | `npm run vendor:draco` | copia o decoder Draco para `public/vendor/draco` (só se algum modelo pedir `draco: true`) |
@@ -105,8 +105,9 @@ Push em `main` roda `.github/workflows/deploy.yml`:
 `npm ci → smoke → build → publica dist/`. Configurar uma vez em
 **Settings → Pages → Source: GitHub Actions**.
 
-O `base` do Vite é `/Granny-Inspiration-IG/` no build e `/` em dev — se o
-repositório for renomeado, `vite.config.js` é o primeiro lugar a mexer.
+O `base` do Vite é `/Granny/` no build e `/` em dev. No CI ele é lido de
+`GITHUB_REPOSITORY`, então um rename do repositório não quebra o deploy em
+silêncio — e o workflow falha se o `dist/` não estiver no caminho certo.
 
 ---
 

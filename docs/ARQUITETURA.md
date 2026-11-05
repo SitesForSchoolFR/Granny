@@ -53,7 +53,7 @@ InputManager ──► PlayerController ──► CollisionWorld (resolve)
 
 ```
 index.html                 canvas + #hud + #screens + #loading, favicon inline
-vite.config.js             base '/Granny-Inspiration-IG/' (só no build)
+vite.config.js             base '/Granny/' no build, '/' em dev
 package.json               scripts: dev | build | preview | smoke | check | vendor:draco
 
 public/                    copiado literalmente para a raiz do site

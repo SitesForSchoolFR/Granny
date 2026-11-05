@@ -33,6 +33,21 @@ isso o workflow publica e ninguém vê.
 O artifact publicado é só `dist/` — `src/`, `tools/` e `node_modules/` não vão
 para o site.
 
+Tem também um passo de **conferência** entre o build e o upload: se
+`dist/index.html` não apontar para `/<nome-do-repo>/assets/`, o job falha com o
+nome esperado no log. É a rede de segurança para o rename silencioso.
+
+> O Pages precisa estar com **Source: GitHub Actions** (não "Deploy from a
+> branch"). É um passo **manual, uma vez só**: Settings → Pages → Build and
+> deployment → Source → **GitHub Actions**. Pela API
+> (`gh api -X POST repos/<dono>/<repo>/pages -F build_type=workflow`) o token
+> costuma devolver 403 "Resource not accessible by integration" porque o
+> escopo de administração do Pages não vem em tokens de integração.
+>
+> Em modo "branch", a Action até passa, mas quem publica é o Jekyll da branch —
+> e aí o site serve `src/` cru, sem bundler, e quebra. Se o site abrir em
+> branco depois de um deploy "verde", confira este item primeiro.
+
 ## 2. O `base` e por que ele quebra tudo
 
 Um projeto de Pages em repositório de projeto é servido em
@@ -47,20 +62,28 @@ emitido no HTML precisa levar o prefixo.
 `vite.config.js`:
 
 ```js
-const REPO_NAME = 'Granny-Inspiration-IG'
+const REPO_NAME = process.env.GITHUB_REPOSITORY?.split('/')[1] || 'Granny'
 
 base: command === 'serve' ? '/' : `/${REPO_NAME}/`
 ```
 
-- **build** → `/Granny-Inspiration-IG/` (bate com o Pages);
+- **build** → `/Granny/` (bate com o Pages);
 - **dev/preview local** → `/` (senão o `npm run dev` abre em 404).
 
 Duas regras decorrentes:
 
 1. `REPO_NAME` tem que ser **exatamente** o nome do repositório, com a mesma
-   caixa. `granny-inspiration-IG` não é `Granny-Inspiration-IG` para o GitHub.
-2. Renomear o repositório exige mudar aqui — é o primeiro lugar a olhar quando
-   o site recém-renomeado para de carregar.
+   caixa. `granny` não é `Granny` para o GitHub.
+2. No CI o nome vem de `GITHUB_REPOSITORY`, então um rename do repo **não**
+   exige editar nada — mas o build local continua usando o literal, então
+   atualize o fallback em `vite.config.js` quando o nome mudar.
+
+> **Já aconteceu:** o repositório se chamava `Granny-Inspiration-IG` e foi
+> renomeado para `Granny`. O nome antigo continua existindo como redirect — o
+> `.git` aponta para ele e o GitHub responde — mas a URL do Pages passou a ser
+> `sitesforschoolfr.github.io/Granny/`. Com `base` no nome antigo, o HTML abria
+> e todos os assets davam 404: tela preta sem nenhum erro de build. Por isso
+> existe o passo de conferência no workflow (abaixo).
 
 ## 3. Como referenciar um asset (e como não referenciar)
 
@@ -128,25 +151,24 @@ o loader cai no placeholder procedural.
 ```bash
 npm run smoke        # 27 testes de lógica
 npm run build        # tem que passar sem warning de UNRESOLVED_IMPORT
-npm run preview      # abre em http://localhost:4173/Granny-Inspiration-IG/
+npm run preview      # abre em http://localhost:4173/Granny/
 ```
 
 No preview, confira:
 
 1. a página abre **no caminho com o nome do repo** (não na raiz);
-2. `dist/index.html` referencia `/Granny-Inspiration-IG/assets/…` — nunca
-   `/assets/…`;
+2. `dist/index.html` referencia `/Granny/assets/…` — nunca `/assets/…`;
 3. o console não mostra 404 de asset;
 4. `?debug` mostra o overlay e o FPS; `?seed=1` produz a mesma casa/item.
 
 ```bash
 grep -oE '(href|src)="/[^"]+"' dist/index.html
-# esperado: /Granny-Inspiration-IG/... em tudo
+# esperado: /Granny/... em tudo
 ```
 
 ## 7. Depois do primeiro deploy
 
-- A URL final: `https://sitesforschoolfr.github.io/Granny-Inspiration-IG/`
+- A URL final: `https://sitesforschoolfr.github.io/Granny/`
 - Primeiro deploy pode levar alguns minutos; os seguintes, ~1 min.
 - `Settings → Pages` mostra o último deploy e o hash do commit publicado — é
   lá que se confirma que o push gerou site.
