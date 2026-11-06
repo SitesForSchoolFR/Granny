@@ -1,9 +1,11 @@
-import { DIFFICULTY, GAME, HOUSE, PLAYER, QUALITY, SAVE } from './config.js'
+import * as THREE from 'three'
+import { DIFFICULTY, GAME, HOUSE, NOISE_RADIUS, PLAYER, QUALITY, SAVE } from './config.js'
 import { Engine } from './Engine.js'
 import { EventBus, Ev } from './events.js'
 import { GameState, StateMachine } from './state.js'
 import { AssetLoader } from './AssetLoader.js'
 import { House } from '../world/House.js'
+import { POI } from '../world/POI.js'
 import { NavGrid } from '../ai/NavGrid.js'
 import { GrannyAI, AIState } from '../ai/GrannyAI.js'
 import { InputManager } from '../player/InputManager.js'
@@ -58,6 +60,8 @@ export class Game {
       invertY: false,
       lanternStart: false,
       hasSave: false,
+      /** Multiplicador de brilho (a casa estava escura demais no console). */
+      brightness: 1,
     }
     if (!DIFFICULTY[this.settings.difficulty]) this.settings.difficulty = 'normal'
 
@@ -69,7 +73,8 @@ export class Game {
     this.world = this.house.world
     this.audio = new AudioSystem({ bus: this.bus, assets: this.assets })
     this.noise = new NoiseSystem({ bus: this.bus })
-    this.inventory = new Inventory({ bus: this.bus })
+    // Uma mão só: dá para segurar 1 item por vez (pedido do criador).
+    this.inventory = new Inventory({ bus: this.bus, max: 1 })
     this.save = new SaveSystem()
     this.puzzles = new PuzzleSystem({ bus: this.bus, house: this.house, inventory: this.inventory, rng: this.rng })
     this.input = new InputManager({ canvas, bus: this.bus })
@@ -94,6 +99,11 @@ export class Game {
     this.focusedPoi = null
     /** @type {object|null} porta sob a mira (doc Parte 2 §6). */
     this.focusedDoor = null
+    /** Itens soltos no chão (arremessados/largados). */
+    this.dropped = []
+    this.droppedCount = 0
+    /** Normal: o "dia extra" só pode acontecer uma vez por run. */
+    this.extraDayUsed = false
     this.catchCooldown = 0
     this.lastNoise = null
     this.running = false
@@ -411,10 +421,9 @@ export class Game {
     if (door.locked) {
       const res = door.unlockWith(this.inventory)
       if (!res.ok) {
-        const what = res.item ? itemLabel(res.item) : 'a tranca'
-        this.hud.toast(`${STR.prompt.locked} — ${STR.prompt.missing} ${what}`, 'warn')
+        // Sem texto: a própria mira já diz "porta (trancada)". Só o som seco.
         this.audio.play('denied', { position: door.center, gain: 0.5 })
-        this.noise.emit({ position: door.center, loudness: 0.22, type: 'denied', source: 'player' })
+        this.noise.emit({ position: door.center, loudness: 0.22, radius: NOISE_RADIUS.interact, type: 'denied', source: 'player' })
         return
       }
       this.hud.toast(`${STR.prompt.unlocked}: ${itemLabel(res.item)}`, 'good')
@@ -425,11 +434,16 @@ export class Game {
     }
     const res = door.toggle()
     if (!res.ok) {
-      this.hud.toast(res.reason === 'blocked' ? 'algo está no vão' : STR.prompt.locked, 'warn')
       this.audio.play('denied', { position: door.center, gain: 0.4 })
       return
     }
-    this.noise.emit({ position: door.center, loudness: res.loudness, type: 'door', source: 'player' })
+    this.noise.emit({
+      position: door.center,
+      loudness: res.loudness,
+      radius: door.creak >= 0.5 ? NOISE_RADIUS.creakyDoor : NOISE_RADIUS.door,
+      type: 'door',
+      source: 'player',
+    })
     this.audio.play(res.open ? 'doorOpen' : 'doorClose', { position: door.center, gain: 0.7 })
     this.bus.emit(Ev.POI_INTERACT, { door: door.id, ...res })
   }
@@ -444,31 +458,117 @@ export class Game {
     if (input.wasPressed('inventory')) this.#listInventory()
     if (input.wasPressed('use')) this.#useItem()
     if (input.wasPressed('drop')) this.#dropItem()
+    if (input.wasPressed('throw')) this.#throwItem()
     if (input.wasPressed('lantern')) this.#toggleLantern()
     if (input.wasPressed('map')) this.#showWhereabouts()
   }
 
+  /**
+   * Inventário: sem aviso quando está vazio ou quando não há nada a fazer.
+   * Regra do criador: interação que não dá em nada NÃO mostra texto — só não
+   * acontece nada na tela.
+   */
   #listInventory() {
-    if (this.inventory.size === 0) return this.hud.toast('inventário vazio', 'info')
-    this.hud.toast(`inventário: ${this.inventory.slots.map((s) => s.label).join(', ')}`, 'info')
+    if (this.inventory.size === 0) return
+    this.hud.toast(`na mão: ${this.inventory.slots.map((s) => s.label).join(', ')}`, 'info')
   }
 
-  /** Usa o primeiro item "usável" da mochila (Parte 4 expande as receitas). */
+  /** Usa o item da mão (Parte 4 expande as receitas; óleo já funciona). */
   #useItem() {
-    const slot = this.inventory.slots.find((s) => ITEMS[s.id]?.usable)
-    if (!slot) return this.hud.toast('nada para usar agora', 'info')
+    const slot = this.inventory.slots[0]
+    if (!slot) return
     if (slot.id === 'flashlight') {
       this.player.setLantern(true)
       return this.hud.toast('lanterna acesa', 'good')
     }
-    return this.hud.toast(`${slot.label}: ainda não tem utilidade`, 'info')
+    if (slot.id === 'oil') return this.#useOil(slot)
   }
 
+  /**
+   * Óleo (doc §6.4): tira o rangido da tábua sob os pés, para sempre.
+   * Cada frasco tem usos limitados (ITEMS.oil.uses).
+   */
+  #useOil(slot) {
+    const board = this.world.boardAt?.(this.player.position.x, this.player.position.z)
+    if (!board) return this.hud.toast('não tem nada rangendo aqui', 'info')
+    this.world.silenceBoard(board)
+    slot.qty -= 1
+    if (slot.qty <= 0) this.inventory.remove('oil')
+    this.audio.play('oil', { position: this.player.position, gain: 0.7 })
+    this.noise.emit({ position: this.player.position, loudness: 0.05, radius: NOISE_RADIUS.oil, type: 'oil', source: 'player' })
+    this.hud.toast('a tábua parou de ranger', 'good')
+  }
+
+  /** Larga o item no chão, aos pés (sem arremesso). */
   #dropItem() {
-    const slot = this.inventory.slots.at(-1)
-    if (!slot) return this.hud.toast('nada para largar', 'info')
-    this.inventory.remove(slot.id)
-    this.hud.toast(`largou: ${slot.label}`, 'info')
+    this.#releaseItem({ thrown: false })
+  }
+
+  /** Espaço: ARREMESSA o item da mão (doc §6.6 — item de distração). */
+  #throwItem() {
+    this.#releaseItem({ thrown: true })
+  }
+
+  #releaseItem({ thrown }) {
+    const slot = this.inventory.slots[0]
+    if (!slot) return // mão vazia: nada na tela, sem aviso
+    const id = slot.id
+    const label = slot.label
+    this.inventory.remove(id, 1)
+
+    const look = this.player.lookDir()
+    let x = this.player.position.x + look.x * (thrown ? 3.4 : 0.7)
+    let z = this.player.position.z + look.z * (thrown ? 3.4 : 0.7)
+
+    // Caiu no void / dentro de parede? Vai para a sala (pedido do criador).
+    const cell = this.world.cellOf(x, z)
+    if (this.world.isCellSolid?.(cell.cx, cell.cz)) {
+      const sala = this.house.rooms.find((r) => r.id === 'living') ?? this.house.rooms[0]
+      const c = this.house.cellToWorld(Math.floor((sala.x0 + sala.x1) / 2), Math.floor((sala.z0 + sala.z1) / 2))
+      x = c.x
+      z = c.z
+    }
+    const free = this.world.nearestFree(x, z, 0.35)
+    this.#spawnDroppedItem(id, label, free.x, free.z)
+
+    // Impacto: barulho no ponto onde caiu (doc §6.2 — distração 15 unidades).
+    const radius = thrown ? NOISE_RADIUS.distraction : NOISE_RADIUS.drop
+    this.noise.emit({
+      position: { x: free.x, z: free.z },
+      loudness: thrown ? 0.7 : 0.45,
+      radius,
+      type: thrown ? 'distraction' : 'drop',
+      source: 'player',
+    })
+    this.audio.play(thrown ? 'drop' : 'thump', { position: { x: free.x, z: free.z }, gain: thrown ? 0.8 : 0.5 })
+    if (thrown) this.hud.toast(`arremessou: ${label}`, 'info')
+  }
+
+  /** Cria um POI de item solto no chão (reaproveita a interação existente). */
+  #spawnDroppedItem(id, label, x, z) {
+    const poi = new POI({
+      id: `dropped_${id}_${++this.droppedCount}`,
+      kind: 'item',
+      label,
+      item: id,
+      // y = 0.18: o octaedro (raio 0.13) fica APOIADO no chão, não afundado.
+      point: new THREE.Vector3(x, 0.18, z),
+      world: this.world,
+    })
+    this.house.pois.push(poi)
+    this.house.group.add(poi.object3D)
+    this.dropped.push(poi)
+    return poi
+  }
+
+  /** Limpa os itens soltos no chão (começo de run). */
+  #clearDropped() {
+    for (const poi of this.dropped) {
+      this.house.group.remove(poi.object3D)
+      const i = this.house.pois.indexOf(poi)
+      if (i >= 0) this.house.pois.splice(i, 1)
+    }
+    this.dropped.length = 0
   }
 
   #toggleLantern() {
@@ -495,8 +595,18 @@ export class Game {
       house: this.house,
       bus: this.bus,
     })
-    if (res.noise > 0) this.noise.emit({ position: poi.point, loudness: res.noise, type: res.sound ?? 'interact', source: 'player' })
-    if (res.sound) this.audio.play(res.sound, { position: poi.point, gain: 0.5 + res.noise * 0.4 })
+    if (res.noise > 0) {
+      this.noise.emit({
+        position: poi.point,
+        loudness: res.noise,
+        radius: NOISE_RADIUS[this.#noiseKind(res.sound)] ?? 0,
+        type: res.sound ?? 'interact',
+        source: 'player',
+      })
+    }
+    // Som de pegar muda conforme o item (metal, papel, ferramenta…).
+    if (res.sound === 'pickup') this.audio.pickup(res.item ?? '', poi.point)
+    else if (res.sound) this.audio.play(res.sound, { position: poi.point, gain: 0.5 + res.noise * 0.4 })
     this.bus.emit(Ev.POI_INTERACT, { poi: poi.id, ...res })
     if (res.message) this.hud.toast(res.message, res.ok ? 'good' : 'warn')
     if (res.escape) this.sm.go(GameState.WIN)
@@ -507,6 +617,19 @@ export class Game {
     this.catchCooldown = 2
     this.attemptsMade += 1
     this.attemptsLeft -= 1
+
+    // Normal: chance de ganhar mais uma noite quando a última se esgota.
+    const diff = DIFFICULTY[this.settings.difficulty] ?? DIFFICULTY.normal
+    if (this.attemptsLeft <= 0 && diff.extraDayChance > 0 && !this.extraDayUsed && this.rng() < diff.extraDayChance) {
+      this.extraDayUsed = true
+      this.attemptsLeft = 1
+      this.hud.toast('você aguenta mais uma noite…', 'good')
+    }
+
+    // Cada noite perdida derruba um pouco mais a cabeça (pedido do criador):
+    // a câmera fica torta para a esquerda e balança junto com as passadas.
+    this.player.setTilt(-Math.min(this.attemptsMade, 5) * 0.035)
+
     this.bus.emit('player:damaged', { attemptsLeft: this.attemptsLeft })
     this.audio.play('thump', { gain: 1 })
     if (this.attemptsLeft <= 0) this.sm.go(GameState.LOSE)
@@ -518,11 +641,14 @@ export class Game {
     const diff = DIFFICULTY[this.settings.difficulty] ?? DIFFICULTY.normal
     this.applyDifficulty()
     this.attemptsLeft = diff.maxCaught
+    this.#clearDropped()
     if (fresh) {
       this.attemptsMade = 0
+      this.extraDayUsed = false
       this.runSeconds = 0
       this.inventory.clear()
       this.noise.reset()
+      this.player.setTilt(0)
     }
     this.puzzles.beginRun({ pois: this.house.pois, itemCount: diff.itemCount, exitLocked: true })
     this.hud.setLives(this.attemptsLeft, diff.maxCaught)
@@ -572,7 +698,7 @@ export class Game {
     return ok
   }
 
-  /** Empurra os multiplicadores da dificuldade para a IA (Parte 3 afina). */
+  /** Empurra os multiplicadores e as regras da dificuldade para o mundo. */
   applyDifficulty() {
     const diff = DIFFICULTY[this.settings.difficulty] ?? DIFFICULTY.normal
     Object.assign(this.granny.scale, {
@@ -580,6 +706,27 @@ export class Game {
       chase: diff.grannyChaseScale,
       hearing: diff.hearingScale,
     })
+    // Prática: sem Granny (as aranhas ficam — doc Parte 3 §4).
+    this.granny.setEnabled(diff.granny !== false)
+    // Quantas tábuas rangem de verdade neste modo (Fácil 50% … Extreme 200%).
+    this.house.setActiveBoards(diff.boardScale ?? 1, this.rng)
+    // Extreme: todos os atalhos trancados.
+    this.house.setShortcutsLocked(!!diff.lockShortcuts)
+    // Fácil: sem indicador de ruído no canto — só o som avisa.
+    this.hud.setNoiseVisible(diff.showNoiseHud !== false)
+  }
+
+  /** Brilho: a casa estava escura demais no console. */
+  setBrightness(value) {
+    this.settings.brightness = value
+    this.engine.setBrightness?.(value)
+    this.house.setBrightness?.(value)
+  }
+
+  /** Tipo de barulho (doc §6.2) a partir do som que o POI devolve. */
+  #noiseKind(sound) {
+    if (sound === 'doorOpen' || sound === 'doorClose') return 'door'
+    return 'interact'
   }
 
   setQuality(name) {
@@ -624,6 +771,9 @@ export class Game {
         break
       case 'quality':
         if (QUALITY[value]) this.setQuality(value)
+        break
+      case 'brightness':
+        this.setBrightness(Number(value))
         break
       case 'volume:master':
         this.settings.volumes.master = value

@@ -95,6 +95,34 @@ agachar lento/silencioso e interação por raycast curto.
 - `input.endFrame()` tem que ser chamado uma vez por frame, senão `wasPressed`
   repete a ação indefinidamente.
 
+## Parte 3 (3/5) — ruído, jumpscares, cutscene, personagens, tela de título
+
+| item do doc | onde | status |
+| --- | --- | --- |
+| Sistema de ruído com raio por tipo (§6.2) | `NOISE_RADIUS` + `NoiseSystem` | ✅ |
+| Tábuas barulhentas (§6.3) e óleo que silencia (§6.4) | `CollisionWorld.boardAt/silenceBoard`, item `oil` | ✅ |
+| Como a IA ouve (§6.5): compara distância × raio, expira em 0.5s | `GrannyAI.#listen()`, `NoiseSystem.update()` | ✅ |
+| Itens de distração (§6.6): barulho no ponto de impacto | `Game.#releaseItem()` (`Espaço`) | ✅ |
+| Cinco modos de dificuldade + 5 noites + atalhos trancados | `config.DIFFICULTY`, `House.setShortcutsLocked()` | ✅ |
+| Granny abre porta em 2s (qualquer modo) | `GrannyAI.#advance()` | ✅ |
+| Uma mão só / arremessar / item no void volta para a sala | `Inventory(max:1)`, `Game.#releaseItem()` | ✅ |
+| Tilt da câmera conforme as noites perdidas | `PlayerController.setTilt()` | ✅ |
+| Som muda por item e por superfície | `AudioSystem.pickup()`, `footstep({surface})` | ✅ |
+| Casa mais clara + ajuste de brilho nas opções | `HOUSE.ambient`, `Engine/House.setBrightness()` | ✅ |
+| Tela de título (§1) e seleção de dificuldade com 5 modos | `ui/Menus.js` | ⬜ próxima leva |
+| Cutscene de abertura (§2): olhar o teto, blur, prompt, gemido | `Game.respawn()` | ⬜ próxima leva |
+| Jumpscares (§3): captura, susto roteirizado, aranha | `Game.onCaught()` + novo `ScareSystem` | ⬜ próxima leva |
+| Personagens 3D (§4): Granny, Spider, Spider do esgoto, Slendrina | `world/characters/` | ⬜ próxima leva |
+| Quintal (backyard) no mapa | `world/floorplan.js` | ⬜ próxima leva |
+
+**Armadilhas desta parte** (detalhadas em [DECISOES.md](./DECISOES.md) §17):
+
+- `PROPS.at` é célula ABSOLUTA e `size` é em METROS (já erramos os dois);
+- atalho trancado não pode ser a única porta de um cômodo — o smoke faz BFS
+  com os atalhos trancados e pega isso;
+- ao remover um campo do config, grep em `src/` e `tools/`: o fantasma de
+  `eyeRatio` já custou uma sessão de debug.
+
 ## Parte 3 — a Granny (IA)
 
 | o que | onde | já existe |

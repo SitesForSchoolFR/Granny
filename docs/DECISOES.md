@@ -296,3 +296,59 @@ intermitente. Agora o teste cobre 1,2 a 2,4 m da porta da frente.
 `justPressed` nunca era limpo, então um toque em `E` repetiria a interação 60
 vezes por segundo (e o pause dispararia em loop). Vai no `onRender`, depois de
 todos os passos fixos terem lido o input.
+
+
+## 17. Parte 3 (1ª leva) — dificuldade, ruído, itens e revisão de geometria
+
+**a) Cinco modos, sempre 5 noites.** A dificuldade mexe em velocidade, ruído e
+atalhos — nunca em vidas. A velocidade da Granny é definida em relação à do
+jogador (`PLAYER.walkSpeed` = 3.0): Fácil 0.87, **Normal 1.0 (empate
+proposital: não dá pra correr dela, só de manobrar)**, Difícil 1.10,
+Extreme 1.30. Na Prática ela simplesmente não existe (`granny: false`), mas as
+aranhas ficam — o modo deixa de ser "fácil" e vira "treino do mapa".
+
+**b) Porta de 2 segundos, sempre.** Toda porta que a Granny abre leva
+`GRANNY.doorOpenTime` = 2s, em qualquer dificuldade. Durante a abertura ela
+emite um rangido baixo: é o aviso de que ela está chegando, e é o que torna
+justo ela ser mais rápida que você no Extreme.
+
+**c) Ruído virou DISTÂNCIA, não volume.** Antes o sistema emitia `loudness`
+0..1 e convertia para raio. Agora cada tipo tem raio próprio (`NOISE_RADIUS`,
+tabela do doc §6.2): passo 8, agachado 3, porta 12/16, tábua 18, distração 15.
+É o número que a IA compara com a distância dela até o evento — e é o que faz
+"agachado corta o raio da tábua pela metade" ser literal, não metafórico.
+Eventos expiram em 0.5s (doc §6.5); sem isso, um passo de 10s atrás ainda
+estava na fila quando a Granny passava perto.
+
+**d) Uma mão só.** Inventário com `max: 1`. `Espaço` arremessa (doc §6.6: o
+barulho acontece no ponto de IMPACTO, raio 15, então dá para puxar a Granny
+para longe de você). Item que cai fora do mapa volta para a sala.
+
+**e) Interação que não dá em nada não mostra nada.** Removidos os toasts de
+"nada para usar", "nada para largar", "inventário vazio", "porta trancada".
+A mira já diz `porta (trancada — chave do quarto)`; o resto é silêncio + um
+som seco. Texto na tela passou a significar "aconteceu algo".
+
+**f) Noite perdida derruba a cabeça.** Cada captura aplica
+`setTilt(-mortes * 0.035)`; andando, o tilt oscila com o passo. Aos poucos o
+jogador sente o corpo piorando sem precisar ler número nenhum.
+
+**g) Atalhos tinham que ser atalhos de verdade.** Minha primeira escolha
+(`7,4`, `11,7`, `4,11`) trancava portas CRÍTICAS: com `7,4` fechada, o quarto
+inicial e o quarto viravam uma ilha — o jogo ficava impossível no Extreme.
+Criei quatro atalhos reais na planta (`10,1`, `10,9`, `8,13`, `14,13`): portas
+internas entre cômodos do mesmo andar, sempre com a volta pelo corredor como
+alternativa. O smoke faz BFS com os atalhos trancados e falha se qualquer POI
+ficar inalcançável.
+
+**h) Revisão de geometria (doc §0) pegou dois defeitos feios.**
+- A cama do quarto inicial estava em `(0,0)` — **dentro da parede** — porque eu
+  assumi que `PROPS.at` era relativo ao cômodo, mas é célula absoluta. E a cama
+  do quarto estava em `(2,1)`, que virou o quarto inicial depois da Parte 2:
+  ficou **em cima do criado-mudo** (POI da chave).
+- `House.#props()` multiplicava `size` pelo tamanho da célula (3 m):
+  **a cama tinha 5,7 × 3,6 m**, do tamanho de dois cômodos. `size` agora é em
+  metros, limitado a 90% da célula para nunca vazar para a parede.
+
+Os dois viraram testes permanentes (`móveis: nenhum dentro de parede…`,
+`móveis em escala de gente`) — a revisão do §0 agora roda sozinha.

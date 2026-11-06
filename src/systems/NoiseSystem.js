@@ -35,19 +35,27 @@ export class NoiseSystem {
    * @param {{position:{x:number,y?:number,z:number}, loudness:number, type:string, source?:string}} ev
    * @returns {object|null} o evento emitido (útil para testes/debug)
    */
-  emit({ position, loudness = 0, type = 'generic', source = 'world' }) {
+  /**
+   * @param {{position:{x:number,y?:number,z:number}, loudness?:number,
+   *   radius?:number, type?:string, source?:string}} ev
+   *   `radius` é o raio REAL em metros (doc §6.2). Sem ele, cai na conversa
+   *   antiga loudness → raio, para não quebrar quem já emite assim.
+   */
+  emit({ position, loudness = 0, radius = 0, type = 'generic', source = 'world' }) {
     if (!this.enabled) return null
     const value = Math.max(0, Math.min(1, loudness))
-    if (value < this.cfg.minLoudness) return null
+    if (value < this.cfg.minLoudness && radius <= 0) return null
+    const reach = radius > 0 ? radius : this.cfg.maxRadius * value
     const event = {
       x: position.x,
       y: position.y ?? 0,
       z: position.z,
       loudness: value,
-      radius: this.cfg.maxRadius * value,
+      radius: reach,
       type,
       source,
       age: 0,
+      ttl: this.cfg.ttl ?? 0.5,
       id: `n${++this.total}`,
     }
     this.pending.push(event)
@@ -63,13 +71,19 @@ export class NoiseSystem {
    * Entrega (e limpa) os ruídos desde o último tick do ouvinte.
    * @param {{x:number,z:number,hearingRadius?:number}} listener
    */
+  /**
+   * @param {{x:number,z:number,hearingRadius?:number,hearingScale?:number}} listener
+   *   `hearingScale` vem da dificuldade; `hearingRadius` é um teto opcional.
+   *   Som atravessa parede por design (doc §6.5) — não tem oclusão aqui.
+   */
   consume(listener) {
     if (this.pending.length === 0) return []
     const heard = []
-    const limit = listener.hearingRadius ?? this.cfg.maxRadius
+    const limit = listener.hearingRadius ?? Infinity
+    const scale = listener.hearingScale ?? 1
     for (const event of this.pending) {
       const dist = Math.hypot(event.x - listener.x, event.z - listener.z)
-      const reach = Math.min(limit, event.radius)
+      const reach = Math.min(limit, event.radius * scale)
       if (dist > reach) continue
       const strength = 1 - dist / Math.max(1, reach)
       heard.push({ ...event, distance: dist, strength })
@@ -83,6 +97,12 @@ export class NoiseSystem {
   update(dt) {
     this.level = Math.max(0, this.level - this.cfg.hudDecay * dt)
     for (const event of this.history) event.age += dt
+    // Barulho é momentâneo: expira em ~0.5s (doc §6.5). Sem isto, um passo
+    // dado há 10s ainda estaria na fila quando a Granny passasse perto.
+    for (const event of this.pending) event.age += dt
+    if (this.pending.some((e) => e.age > (e.ttl ?? 0.5))) {
+      this.pending = this.pending.filter((e) => e.age <= (e.ttl ?? 0.5))
+    }
   }
 
   /** Nível de "acabei de fazer barulho" para o HUD (0..1). */

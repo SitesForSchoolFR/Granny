@@ -71,6 +71,24 @@ export class CollisionWorld {
     return this.boards.length - 1
   }
 
+  /** Recomeça a lista de tábuas (mudança de dificultade). */
+  clearBoards() {
+    this.boards.length = 0
+  }
+
+  /**
+   * Óleo (doc §6.4): a tábua para de ranger PARA SEMPRE nesta run.
+   * @param {{cx:number,cz:number}} board
+   * @returns {boolean} true se realmente existia e foi silenciada
+   */
+  silenceBoard(board) {
+    if (!board) return false
+    const i = this.boards.indexOf(board)
+    if (i < 0) return false
+    this.boards.splice(i, 1)
+    return true
+  }
+
   /** @returns {{cx:number,cz:number,loudness:number,type?:string}|null} */
   boardAt(x, z) {
     if (this.boards.length === 0) return null

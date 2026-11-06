@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-const { HOUSE, PLAYER, NOISE, GRANNY, DEFAULT_BINDINGS } = await import('../src/core/config.js')
+const { HOUSE, PLAYER, NOISE, GRANNY, DEFAULT_BINDINGS, NOISE_RADIUS, DIFFICULTY, DIFFICULTY_ORDER } = await import('../src/core/config.js')
 const { CollisionWorld } = await import('../src/world/CollisionWorld.js')
 const { House } = await import('../src/world/House.js')
 const { NavGrid } = await import('../src/ai/NavGrid.js')
@@ -803,6 +803,297 @@ function mulberry(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
+
+// ─── Parte 3: dificuldades, ruído, itens ──────────────────────────────────
+console.log('parte 3 — dificuldade/ruído/itens')
+const { CREAKY_BOARDS, DOOR_SHORTCUTS, MAP_WIDTH: MAPW } = await import('../src/world/floorplan.js')
+const { ITEMS: ITEMS_CATALOG } = await import('../src/systems/items.js')
+
+test('cinco modos, sempre 5 noites (pedido do criador)', () => {
+  assert.deepEqual([...DIFFICULTY_ORDER], ['practice', 'easy', 'normal', 'hard', 'extreme'])
+  for (const key of DIFFICULTY_ORDER) {
+    assert.ok(DIFFICULTY[key], `modo ${key} não existe`)
+    assert.equal(DIFFICULTY[key].maxCaught, 5, `${key} não tem 5 noites`)
+  }
+})
+
+test('velocidade: empate no Normal, Granny mais rápida no Difícil/Extreme', () => {
+  const playerSpeed = PLAYER.walkSpeed
+  const chase = (key) => GRANNY.chaseSpeed * DIFFICULTY[key].grannyChaseScale
+  assert.equal(playerSpeed, 3.0, 'jogador deveria andar a 3.0')
+  // Normal: mesma velocidade do jogador (não dá pra correr dela, só de manobra)
+  assert.ok(Math.abs(chase('normal') - playerSpeed) < 0.01, `Normal: Granny ${chase('normal')} vs jogador ${playerSpeed}`)
+  assert.ok(chase('easy') < playerSpeed, 'no Fácil ela deveria ser mais lenta')
+  assert.ok(chase('hard') > playerSpeed, 'no Difícil ela deveria ser mais rápida')
+  assert.ok(chase('extreme') > chase('hard'), 'no Extreme ela deveria ser muito mais rápida')
+})
+
+test('Prática sem Granny · Fácil sem HUD de ruído · Extreme com atalhos trancados', () => {
+  assert.equal(DIFFICULTY.practice.granny, false, 'Prática deveria ser sem a Granny')
+  assert.equal(DIFFICULTY.practice.spiders, true, 'as aranhas continuam na Prática')
+  assert.equal(DIFFICULTY.easy.showNoiseHud, false, 'Fácil não mostra o símbolo de ruído')
+  assert.equal(DIFFICULTY.easy.boardScale, 0.5, 'Fácil tem menos barulho no chão')
+  assert.equal(DIFFICULTY.extreme.lockShortcuts, true, 'Extreme tranca os atalhos')
+  assert.equal(DIFFICULTY.normal.extraDayChance > 0, true, 'Normal tem chance de dia extra')
+})
+
+test('dificuldade liga mais/menos tábuas barulhentas', () => {
+  const h = makeWorld()
+  const seeded = mulberry(11)
+  h.setActiveBoards(0.5, seeded)
+  const easy = h.world.boards.length
+  h.setActiveBoards(1, mulberry(11))
+  const normal = h.world.boards.length
+  h.setActiveBoards(2, mulberry(11))
+  const extreme = h.world.boards.length
+  assert.equal(normal, CREAKY_BOARDS.length, 'Normal deveria ligar todas as tábuas do mapa')
+  assert.ok(easy < normal, `Fácil (${easy}) deveria ter menos tábuas que Normal (${normal})`)
+  assert.ok(extreme > normal, `Extreme (${extreme}) deveria ter mais tábuas que Normal (${normal})`)
+})
+
+test('atalhos trancados não desconectam a casa', () => {
+  const h = makeWorld()
+  h.setShortcutsLocked(true)
+  for (const key of DOOR_SHORTCUTS) {
+    const [cx, cz] = key.split(',').map(Number)
+    const door = h.doors.get(`door_${cx}_${cz}`)
+    assert.ok(door, `atalho ${key} não é uma porta`)
+    assert.equal(door.locked, true, `atalho ${key} não trancou`)
+  }
+  // BFS: com os atalhos trancados, ainda dá para chegar em todo canto.
+  const blocked = (cx, cz) => h.world.isCellSolid(cx, cz) || DOOR_SHORTCUTS.includes(`${cx},${cz}`)
+  const seen = new Set()
+  const start = h.world.cellOf(h.spawn.player.x, h.spawn.player.z)
+  const queue = [start]
+  seen.add(`${start.cx},${start.cz}`)
+  while (queue.length) {
+    const { cx, cz } = queue.shift()
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = cx + dx
+      const nz = cz + dz
+      const key = `${nx},${nz}`
+      if (nx < 0 || nz < 0 || nx >= MAPW || nz >= h.cells.length) continue
+      if (seen.has(key) || blocked(nx, nz)) continue
+      seen.add(key)
+      queue.push({ cx: nx, cz: nz })
+    }
+  }
+  // todo POI alcançável com portas abertas continua alcançável sem os atalhos
+  for (const poi of h.pois.filter((p) => p.kind !== 'exit')) {
+    const c = h.world.cellOf(poi.point.x, poi.point.z)
+    assert.ok(seen.has(`${c.cx},${c.cz}`), `POI ${poi.id} ficou inalcançável com os atalhos trancados`)
+  }
+  h.setShortcutsLocked(false)
+})
+
+test('ruído: raio por tipo (doc §6.2) e expira em 0.5s', () => {
+  const h = makeWorld()
+  const noise = new NoiseSystem()
+  const walk = makePlayer(h, { forward: true })
+  walk.noise = noise
+  walk.spawn(h.cellToWorld(10, 6), -Math.PI / 2)
+  walk.input = fakeInput({ forward: true })
+  let evt = null
+  for (let i = 0; i < 90 && !evt; i += 1) {
+    walk.update(1 / 60)
+    evt = noise.history.at(-1)
+  }
+  assert.ok(evt, 'nenhum passo emitido')
+  assert.equal(evt.radius, NOISE_RADIUS.footstep, 'passo deveria ter raio 8')
+
+  // agachado: raio 3
+  const crouch = makePlayer(h, { forward: true, crouch: true })
+  const noise2 = new NoiseSystem()
+  crouch.noise = noise2
+  crouch.spawn(h.cellToWorld(10, 6), -Math.PI / 2)
+  let evt2 = null
+  for (let i = 0; i < 120 && !evt2; i += 1) {
+    crouch.update(1 / 60)
+    evt2 = noise2.history.at(-1)
+  }
+  assert.equal(evt2.radius, NOISE_RADIUS.crouch, 'passo agachado deveria ter raio 3')
+
+  // expiração (doc §6.5)
+  const n3 = new NoiseSystem()
+  n3.emit({ position: { x: 0, z: 0 }, loudness: 0.8, radius: 10, source: 'player' })
+  assert.equal(n3.consume({ x: 20, z: 0 }).length, 0, 'longe não ouve')
+  n3.emit({ position: { x: 0, z: 0 }, loudness: 0.8, radius: 40, source: 'player' })
+  for (let i = 0; i < 40; i += 1) n3.update(1 / 60) // 0.66s > ttl
+  assert.equal(n3.consume({ x: 20, z: 0 }).length, 0, 'barulho de 0.6s atrás deveria ter expirado')
+})
+
+test('tábua barulhenta: raio 18, e agachado corta pela metade (não zera)', () => {
+  const h = makeWorld()
+  const board = h.world.boards[0]
+  const step = (crouch) => {
+    const noise = new NoiseSystem()
+    const p = makePlayer(h, crouch ? { forward: true, crouch: true } : { forward: true })
+    p.noise = noise
+    p.spawn(h.cellToWorld(board.cx, board.cz), -Math.PI / 2)
+    p.input = fakeInput(crouch ? { forward: true, crouch: true } : { forward: true })
+    for (let i = 0; i < 120; i += 1) {
+      p.update(1 / 60)
+      const last = noise.history.at(-1)
+      if (last && last.type === 'board') return last
+    }
+    return null
+  }
+  const emPe = step(false)
+  assert.ok(emPe, 'nunca pisou na tábua')
+  assert.equal(emPe.radius, NOISE_RADIUS.floorboard, 'tábua deveria ter raio 18')
+  const agachado = step(true)
+  assert.ok(agachado, 'agachado nunca pisou na tábua')
+  assert.equal(agachado.radius, NOISE_RADIUS.floorboard / 2, 'agachado corta o raio da tábua pela metade')
+  assert.ok(agachado.radius > 0, 'agachado não zera o barulho da tábua')
+})
+
+test('óleo silencia a tábua para sempre', () => {
+  const h = makeWorld()
+  const board = h.world.boards[0]
+  const x = board.cx * 3 + 1.5
+  const z = board.cz * 3 + 1.5
+  assert.ok(h.world.boardAt(x, z), 'tábua não registrada')
+  assert.equal(h.world.silenceBoard(board), true)
+  assert.equal(h.world.boardAt(x, z), null, 'tábua continuou rangendo depois do óleo')
+  assert.equal(h.world.silenceBoard(board), false, 'silenciar duas vezes deveria falhar')
+})
+
+test('uma mão só: só dá para segurar 1 item por vez', () => {
+  const inv = new Inv2({ max: 1 })
+  assert.equal(inv.add('key_room', 'chave do quarto'), true)
+  assert.equal(inv.add('oil', 'óleo'), false, 'deveria caber só um item na mão')
+  assert.equal(inv.size, 1)
+  assert.equal(inv.has('key_room'), true)
+})
+
+test('itens novos do doc: óleo com usos limitados', () => {
+  const ITEMS = ITEMS_CATALOG
+  assert.ok(ITEMS.oil, 'sem o item óleo (doc §6.4)')
+  assert.ok(ITEMS.oil.uses >= 2, 'frasco de óleo deveria ter 2-3 usos')
+  assert.ok(ITEMS.key_room, 'sem a chave do quarto inicial')
+})
+
+test('Granny leva 2s para abrir uma porta (qualquer dificuldade)', () => {
+  const h = makeWorld()
+  const g = new GrannyAI({ world: h.world, nav: new NavGrid(h), house: h, noise: new NoiseSystem(), bus: new Bus2() })
+  const door = h.doors.get('door_11_7')
+  assert.ok(door, 'a casa precisa da porta do corredor para a sala')
+  assert.equal(door.isOpen, false)
+  // Granny no corredor, alvo do outro lado da porta fechada.
+  g.spawn(h.cellToWorld(11, 6))
+  const alvo = h.cellToWorld(11, 9)
+  const player = { position: { x: alvo.x, y: 0, z: alvo.z }, height: PLAYER.height, crouching: false, concealed: false }
+  let comecou = 0
+  let abriu = 0
+  for (let i = 0; i < 60 * 8; i += 1) {
+    g.update(1 / 60, player)
+    if (!comecou && g.opening) comecou = (i + 1) / 60
+    if (door.isOpen) {
+      abriu = (i + 1) / 60
+      break
+    }
+  }
+  assert.ok(comecou > 0, 'ela nunca encostou na porta')
+  assert.ok(abriu > 0, 'ela nunca abriu a porta')
+  const levou = abriu - comecou
+  assert.ok(
+    Math.abs(levou - GRANNY.doorOpenTime) < 0.25,
+    `abriu em ${levou.toFixed(2)}s, o combinado é ${GRANNY.doorOpenTime}s`,
+  )
+})
+
+test('Prática desliga a Granny sem quebrar o loop', () => {
+  const h = makeWorld()
+  const g = new GrannyAI({ world: h.world, nav: new NavGrid(h), house: h, noise: new NoiseSystem(), bus: new Bus2() })
+  g.spawn(h.spawn.granny)
+  g.setEnabled(false)
+  const antes = { x: g.position.x, z: g.position.z }
+  for (let i = 0; i < 120; i += 1) g.update(1 / 60, { position: { x: h.spawn.player.x, y: 0, z: h.spawn.player.z }, height: PLAYER.height, crouching: false, concealed: false })
+  assert.ok(Math.hypot(g.position.x - antes.x, g.position.z - antes.z) < 0.01, 'Granny desligada não deveria andar')
+  g.setEnabled(true)
+})
+
+test('item arremessado fora do mapa volta para a sala', () => {
+  const h = makeWorld()
+  // fora do mapa é sólido (void) — é o que dispara o resgate
+  assert.equal(h.world.isCellSolid(-3, -3), true, 'fora do mapa deveria contar como vazio')
+  const sala = h.rooms.find((r) => r.id === 'living')
+  assert.ok(sala, 'a casa precisa ter uma sala para receber o item')
+  const c = h.world.cellOf(...Object.values(h.cellToWorld(Math.floor((sala.x0 + sala.x1) / 2), Math.floor((sala.z0 + sala.z1) / 2))).slice(0, 2))
+  assert.equal(h.world.isCellSolid(c.cx, c.cz), false, 'o centro da sala precisa ser pisável')
+})
+
+test('morte acumulada inclina a câmera para a esquerda', () => {
+  const h = makeWorld()
+  const p = makePlayer(h, {})
+  const cam = { position: { set() {} }, rotation: { set(_x, _y, z) { this.z = z } } }
+  p.camera = cam
+  p.update(1 / 60)
+  assert.ok(Math.abs(cam.rotation.z) < 1e-6, 'sem mortes a câmera deveria estar reta')
+  p.setTilt(-0.035 * 3) // 3 noites perdidas
+  p.update(1 / 60)
+  assert.ok(cam.rotation.z < 0, 'a câmera deveria tombar para a esquerda (roll negativo)')
+  assert.ok(Math.abs(cam.rotation.z) > 0.05, '3 mortes deveriam inclinar de forma perceptível')
+})
+
+// ─── revisão (doc Parte 3 §0): nada flutuando, atravessando ou fora de escala ─
+console.log('revisão — geometria e escala')
+const { PROPS: PROPS_AUDIT, MAP_ROWS: MAP_ROWS_AUDIT, MAP_HEIGHT: MAP_HEIGHT_AUDIT } = await import('../src/world/floorplan.js')
+void MAP_HEIGHT_AUDIT
+
+test('móveis: nenhum dentro de parede, em cima de porta/POI, nem em cômodo errado', () => {
+  const h = makeWorld()
+  const s = HOUSE.cell
+  const solid = (cx, cz) => cz < 0 || cx < 0 || cz >= MAP_ROWS_AUDIT.length || cx >= (MAP_ROWS_AUDIT[0]?.length ?? 0) || MAP_ROWS_AUDIT[cz][cx] === '#'
+  const problemas = []
+  for (const prop of PROPS_AUDIT) {
+    const [cx, cz] = prop.at
+    const room = h.roomAt((cx + 0.5) * s, (cz + 0.5) * s)
+    const poi = h.pois.find((p) => Math.floor(p.point.x / s) === cx && Math.floor(p.point.z / s) === cz)
+    const door = [...h.doors.values()].find((d) => d.cell && d.cell.cx === cx && d.cell.cz === cz)
+    if (solid(cx, cz)) problemas.push(`${prop.label} (${cx},${cz}) está dentro da parede`)
+    if (room?.id !== prop.room) problemas.push(`${prop.label} declara "${prop.room}" mas está em "${room?.id ?? 'fora'}"`)
+    if (poi) problemas.push(`${prop.label} está em cima do POI ${poi.id}`)
+    if (door) problemas.push(`${prop.label} está em cima da porta ${door.id}`)
+    if (Math.min(prop.size[0], s * 0.9) > s * 0.9 + 1e-6) problemas.push(`${prop.label} é maior que a célula`)
+  }
+  assert.deepEqual(problemas, [], `\n  - ${problemas.join('\n  - ')}`)
+})
+
+test('móveis em escala de gente: nada de cama de 6 metros', () => {
+  const s = HOUSE.cell
+  for (const prop of PROPS_AUDIT) {
+    const w = Math.min(prop.size[0], s * 0.9)
+    const d = Math.min(prop.size[1], s * 0.9)
+    assert.ok(w <= 2.8 && d <= 2.8, `${prop.label} tem ${w}x${d}m — maior que a célula de ${s}m`)
+    if (prop.label === 'cama') {
+      assert.ok(w < 2.2 && d < 1.6, `cama de ${w}x${d}m não é escala de cama`)
+    }
+  }
+})
+
+test('POIs: nenhum dentro de parede ou fora do mapa', () => {
+  const h = makeWorld()
+  const s = HOUSE.cell
+  for (const poi of h.pois) {
+    const cx = Math.floor(poi.point.x / s)
+    const cz = Math.floor(poi.point.z / s)
+    assert.ok(cx >= 0 && cz >= 0 && cz < MAP_ROWS_AUDIT.length, `${poi.id} fora do mapa`)
+    assert.notEqual(MAP_ROWS_AUDIT[cz][cx], '#', `${poi.id} está dentro da parede (${cx},${cz})`)
+  }
+})
+
+test('item solto fica apoiado no chão (não afundado, não flutuando)', () => {
+  const h = makeWorld()
+  const altura = 0.18 // mesmo valor que o Game usa ao criar o item solto
+  const raio = 0.13 // raio do octaedro do POI
+  assert.ok(altura - raio > 0, 'item solto afundaria no chão')
+  assert.ok(altura + raio < 0.5, 'item solto ficaria flutuando alto demais')
+  // e o ponto de interação precisa estar ao alcance de quem está em pé (2.5m)
+  const distanciaOlho = Math.hypot(0, PLAYER.eyeHeight - altura)
+  assert.ok(distanciaOlho < PLAYER.interactRange, 'não daria para pegar o item do chão')
+  void h
+})
 
 // ─── resultado ────────────────────────────────────────────────────────────
 console.log('')

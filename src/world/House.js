@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { HOUSE } from '../core/config.js'
-import { CREAKY_BOARDS, DOOR_LOCKS, MAP_ROWS, MAP_WIDTH, POI_SLOTS, PROPS, ROOMS } from './floorplan.js'
+import { CREAKY_BOARDS, DOOR_LOCKS, DOOR_SHORTCUTS, MAP_ROWS, MAP_WIDTH, POI_SLOTS, PROPS, ROOMS } from './floorplan.js'
 import { CollisionWorld } from './CollisionWorld.js'
 import { Door } from './Doors.js'
 import { POI } from './POI.js'
@@ -194,8 +194,10 @@ export class House {
       if (!room) continue
       const [cx, cz] = prop.at
       const c = this.cellToWorld(cx, cz)
-      const sx = Math.min(prop.size[0], 1.9) * s
-      const sz = Math.min(prop.size[1], 1.9) * s
+      // size em METROS (a célula tem 3m): limitado a 90% da célula para o móvel
+      // nunca vazar para a parede ao lado.
+      const sx = Math.min(prop.size[0], s * 0.9)
+      const sz = Math.min(prop.size[1], s * 0.9)
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, prop.height, sz), this.mat.prop)
       mesh.position.set(c.x, prop.height / 2, c.z)
       mesh.receiveShadow = true
@@ -252,10 +254,49 @@ export class House {
 
   /** Tábuas barulhentas (doc §4): o piso denuncia quem pisa. */
   #boards() {
-    for (const b of CREAKY_BOARDS) {
-      if (!this.isWalkable(b.cx, b.cz)) continue
-      this.world.addBoard(b.cx, b.cz, b.loudness, 'board')
+    this.setActiveBoards(1)
+  }
+
+  /**
+   * Quantas tábuas rangem nesta dificuldade (doc §6.3 + pedido do criador):
+   * Fácil 50% (menos barulho no chão), Normal 100%, Difícil 150%,
+   * Extreme 200%. Acima de 100% ele sorteia células extras de passagem.
+   * @param {number} scale @param {() => number} [rng]
+   */
+  setActiveBoards(scale = 1, rng = Math.random) {
+    this.world.clearBoards()
+    const base = CREAKY_BOARDS.filter((b) => this.isWalkable(b.cx, b.cz))
+    const want = Math.max(1, Math.round(base.length * scale))
+    const chosen = base.slice(0, Math.min(want, base.length))
+    for (const b of chosen) this.world.addBoard(b.cx, b.cz, b.loudness, 'board')
+
+    let extra = want - chosen.length
+    let guard = 0
+    while (extra > 0 && guard < 400) {
+      guard += 1
+      const cx = 1 + Math.floor(rng() * Math.max(1, MAP_WIDTH - 2))
+      const cz = 1 + Math.floor(rng() * Math.max(1, this.cells.length - 2))
+      if (!this.isWalkable(cx, cz)) continue
+      if (this.world.boardAt(cx * 3 + 1.5, cz * 3 + 1.5)) continue
+      this.world.addBoard(cx, cz, 0.8, 'board')
+      extra -= 1
     }
+  }
+
+  /** Extreme: todos os atalhos trancados (doc do criador). */
+  setShortcutsLocked(locked) {
+    for (const key of DOOR_SHORTCUTS) {
+      const [cx, cz] = key.split(',').map(Number)
+      const door = this.doors.get(`door_${cx}_${cz}`)
+      if (door) door.setLocked(!!locked)
+    }
+  }
+
+  /** Brilho global (a casa estava escura demais no console). */
+  setBrightness(value) {
+    this.brightness = Math.max(0.4, Math.min(2, value))
+    if (this.hemi) this.hemi.intensity = HOUSE.ambient * 6 * this.brightness
+    for (const lamp of this.lamps) lamp.light.intensity = lamp.base * this.brightness
   }
 
   #spawnsAndPois() {
@@ -306,7 +347,8 @@ export class House {
   }
 
   #lights() {
-    this.group.add(new THREE.HemisphereLight(0x2a2f3a, 0x0a0a0c, HOUSE.ambient * 6))
+    this.hemi = new THREE.HemisphereLight(0x2a2f3a, 0x0a0a0c, HOUSE.ambient * 6)
+    this.group.add(this.hemi)
 
     const lampCells = [
       [4, 2],

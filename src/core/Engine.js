@@ -58,6 +58,15 @@ export class Engine {
     this.resize()
   }
 
+  /**
+   * Brilho do jogador (Opções). Mexe na exposição do render — a casa estava
+   * escura demais no console/TV.
+   */
+  setBrightness(value) {
+    this.brightness = Math.max(0.4, Math.min(2, value))
+    if (this.renderer) this.renderer.toneMappingExposure = this.brightness
+  }
+
   setQuality(name) {
     const q = QUALITY[name] ?? QUALITY.medium
     this.qualityName = QUALITY[name] ? name : 'medium'

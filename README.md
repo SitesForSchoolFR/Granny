@@ -28,9 +28,10 @@ npm run dev        # http://localhost:5173
 | mouse | olhar |
 | `Ctrl` / `C` | agachar (1,2 m/s, quase silencioso) |
 | `E` ou clique esquerdo | interagir: pegar, revistar, abrir/destrancar porta, esconder |
-| `Tab` / `Q` | listar o inventário |
-| `G` | largar o item da mão |
-| `F` / `Espaço` | usar item da mão |
+| `Tab` / `Q` | ver o que está na mão |
+| `G` | largar o item aos pés |
+| `Espaço` | arremessar o item (faz barulho onde cai — distrai a Granny) |
+| `F` | usar o item da mão (óleo silencia tábua rangendo) |
 | `L` | lanterna |
 | `M` | onde estou |
 | `Esc` | pausar e soltar o mouse |
@@ -45,6 +46,24 @@ O começo: você acorda **deitado** num quarto pequeno e trancado. Levanta no
 primeiro comando de movimento. A saída é uma porta com cadeado — a chave está
 no criado-mudo do próprio quarto. É o primeiro micro-puzzle: antes de sair,
 você já interagiu com o mundo uma vez.
+
+**Você só tem uma mão:** dá para carregar 1 item por vez. O que você solta
+fica no mundo — e se cair fora do mapa, reaparece na sala.
+
+## Modos de dificuldade
+
+São sempre **5 noites**. O que muda é o risco, não a quantidade de vidas.
+
+| modo | Granny | chão | extras |
+| --- | --- | --- | --- |
+| **Prática** | não existe (as aranhas continuam) | normal | — |
+| **Fácil** | mais lenta que você | metade das tábuas | sem indicador de ruído no HUD, só o som |
+| **Normal** | **a sua velocidade** | todas as tábuas | chance de ganhar +1 noite |
+| **Difícil** | mais rápida que você | mais tábuas | — |
+| **Extreme** | muito mais rápida | muito mais ruído | todos os atalhos trancados |
+
+Em qualquer modo, a Granny leva **2 segundos** para abrir uma porta — dá tempo
+de ouvir a maçaneta e sair de perto.
 
 **Regra de ouro:** andar chama atenção, agachar não. A Granny ouve passos e
 vê dentro de um cone — quebrar a linha de visão e se esconder funciona; ficar
