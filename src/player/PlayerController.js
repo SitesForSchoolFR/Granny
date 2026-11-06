@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { PLAYER } from '../core/config.js'
+import { NOISE_RADIUS, PLAYER } from '../core/config.js'
 import { Ev } from '../core/events.js'
 
 const STRIDE = { walk: 0.78, crouch: 0.6 }
@@ -58,6 +58,12 @@ export class PlayerController {
     this.crouching = false
     /** 'lying' (acordando) → 'rising' (levantando) → 'up'. Doc Parte 2 §1. */
     this.wake = { phase: 'up', hold: 0, rising: 0 }
+    /**
+     * Inclinação permanente da câmera (rad), em função das mortes: quanto
+     * mais noites perdidas, mais a cabeça pende (pedido do criador).
+     * Negativo = tomba para a ESQUERDA.
+     */
+    this.tilt = 0
     this.grounded = true
     this.lanternOn = false
     /** @type {object|null} POI de esconderijo atual */
@@ -287,16 +293,19 @@ export class PlayerController {
     this.distanceSinceStep += moved
     if (this.distanceSinceStep < stride) return
     this.distanceSinceStep = 0
-    // Doc §4: piso marcado ("tábua barulhenta") denuncia o passo.
+
+    // Doc Parte 3 §6.3: tábua barulhenta. Agachado CORTA O RAIO PELA METADE,
+    // mas não zera — dá pra passar sorrateiro, não invisível.
     const board = this.world.boardAt?.(this.position.x, this.position.z)
     if (board) {
+      const base = NOISE_RADIUS.floorboard
       const loudness = Math.max(board.loudness ?? PLAYER.noise.board, PLAYER.noise.walk)
-      this.#emitNoise(loudness, board.type ?? 'board')
-      this.audio?.creak?.({ position: this.position, gain: 0.9 })
+      this.#emitNoise(loudness, board.type ?? 'board', this.crouching ? base / 2 : base)
+      this.audio?.footstep?.({ loudness, crouch: this.crouching, surface: 'board', position: this.position })
       return
     }
     const loudness = this.crouching ? PLAYER.noise.crouchFootstep : PLAYER.noise.walk
-    this.#emitNoise(loudness, 'footstep')
+    this.#emitNoise(loudness, 'footstep', this.crouching ? NOISE_RADIUS.crouch : NOISE_RADIUS.footstep)
     this.audio?.footstep?.({ loudness, crouch: this.crouching, position: this.position })
   }
 
@@ -323,9 +332,9 @@ export class PlayerController {
     if (w.rising >= 1) w.phase = 'up' // postura 'walk' é emitida pelo diff abaixo
   }
 
-  #emitNoise(loudness, type) {
+  #emitNoise(loudness, type, radius = 0) {
     this.noiseLevel = Math.max(this.noiseLevel, loudness)
-    this.noise?.emit({ position: this.position, loudness, type, source: 'player' })
+    this.noise?.emit({ position: this.position, loudness, radius, type, source: 'player' })
   }
 
   #bob(dt) {
@@ -339,7 +348,18 @@ export class PlayerController {
   #applyCamera() {
     const eye = this.eye
     this.camera.position.set(eye.x, eye.y, eye.z)
-    this.camera.rotation.set(this.pitch, this.yaw, 0, 'YXZ')
+    // Morte acumulada derruba a cabeça para a esquerda; andando, o corpo
+    // balança junto (duas passadas = um ciclo do bob).
+    const sway = this.speed > 0.15 ? Math.sin(this.bobPhase) * this.tilt * 0.45 : 0
+    this.camera.rotation.set(this.pitch, this.yaw, this.tilt + sway, 'YXZ')
+  }
+
+  /**
+   * @param {number} radians inclinação permanente (negativo = esquerda).
+   *   Chamado pelo Game a cada noite perdida.
+   */
+  setTilt(radians) {
+    this.tilt = Math.max(-0.35, Math.min(0.35, radians))
   }
 
   /** Vetor olhar no plano XZ (para IA/cone). */

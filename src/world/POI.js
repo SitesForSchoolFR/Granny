@@ -130,14 +130,14 @@ export class POI {
         if (this.mark) this.mark.visible = false
         ctx.inventory?.add(this.item, this.label)
         ctx.puzzles?.notifyPickup?.(this.item, this.id)
-        return { ok: true, message: `pegou: ${this.label}`, noise: loud * 0.7, sound: 'pickup' }
+        return { ok: true, message: `pegou: ${this.label}`, item: this.item, noise: loud * 0.7, sound: 'pickup' }
       }
       case 'container': {
         const result = ctx.puzzles?.search?.(this) ?? { found: null }
         this.searched = true
         if (result.found) {
           ctx.inventory?.add(result.found.item, result.found.label)
-          return { ok: true, message: `achei: ${result.found.label}`, noise: loud, sound: 'drawer' }
+          return { ok: true, message: `achei: ${result.found.label}`, item: result.found.item, noise: loud, sound: 'drawer' }
         }
         this.mark?.material?.color?.setHex?.(0x1b1410)
         return { ok: true, message: `${this.label}: vazio`, noise: loud * 0.85, sound: 'drawer' }

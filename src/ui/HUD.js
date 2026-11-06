@@ -176,7 +176,17 @@ export class HUD {
     this.threatText.textContent = spotted ? STR.status.spotted : state === 'INVESTIGATE' || state === 'SEARCH' ? STR.status.heard : ''
   }
 
+  /**
+   * Modo Fácil esconde o indicador de ruído: só o som avisa (pedido do
+   * criador). O barulho continua existindo para a IA — é só o HUD que cala.
+   */
+  setNoiseVisible(visible) {
+    this.noiseVisible = !!visible
+    this.noise.hidden = !visible
+  }
+
   setNoise(noise) {
+    if (this.noiseVisible === false) return
     if (noise.source !== 'player') return
     this.noiseBar.style.width = `${Math.round(noise.loudness * 100)}%`
     this.noise.classList.add('noise--ping')

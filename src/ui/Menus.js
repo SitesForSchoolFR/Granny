@@ -1,5 +1,5 @@
 import { STR } from './strings.js'
-import { DIFFICULTY, QUALITY } from '../core/config.js'
+import { DIFFICULTY, DIFFICULTY_ORDER, QUALITY } from '../core/config.js'
 
 const el = (tag, cls, text) => {
   const n = document.createElement(tag)
@@ -120,7 +120,7 @@ export class Menus {
     diff.append(
       segmented(
         'dificuldade',
-        Object.entries(DIFFICULTY).map(([value, cfg]) => ({ value, label: cfg.label })),
+        DIFFICULTY_ORDER.filter((value) => DIFFICULTY[value]).map((value) => ({ value, label: DIFFICULTY[value].label })),
         this.state.difficulty,
         'difficulty',
       ),
@@ -155,6 +155,7 @@ export class Menus {
       slider('volume geral', 'volume:master', this.state.volumes.master),
       slider('volume ambiente', 'volume:ambience', this.state.volumes.ambience),
       slider('sensibilidade do mouse', 'sensitivity', this.state.sensitivity, 0.3, 2.5, 0.05),
+      slider('brilho', 'brightness', this.state.brightness ?? 1, 0.6, 1.8, 0.05),
     )
     const toggles = el('div', 'menu__row')
     toggles.append(

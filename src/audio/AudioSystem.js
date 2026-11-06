@@ -10,6 +10,18 @@ import { AUDIO } from '../core/config.js'
  * não entram em public/audio. Quando entrarem, o AssetLoader entrega os buffers
  * no mesmo nome de chave e isto aqui vira só o fallback.
  */
+/** Qual som de "pegar" cada item faz (pedido do criador). */
+const PICKUP_SFX = Object.freeze({
+  key_hall: 'pickupKey',
+  key_room: 'pickupKey',
+  padlock_code: 'pickupPaper',
+  battery: 'pickupTool',
+  oil: 'pickupCloth',
+  jar: 'pickupTool',
+  flashlight: 'pickupTool',
+  bolt_cutters: 'pickupTool',
+})
+
 export class AudioSystem {
   /** @param {{bus?: object, assets?: import('../core/AssetLoader.js').AssetLoader}} [opts] */
   constructor({ bus, assets } = {}) {
@@ -128,6 +140,93 @@ export class AudioSystem {
       d[i] = (Math.sin(2 * Math.PI * 140 * (i / rate)) > 0 ? 1 : -1) * env * 0.2
     }))
 
+    // ── passos por superfície (pedido do criador: som muda ao andar) ──────
+    this.buffers.set('stepWood', make((d, t, i) => {
+      const white = Math.random() * 2 - 1
+      last = last * 0.88 + white * 0.12
+      const env = Math.exp(-t * 17)
+      // toco seco de madeira por baixo do ruído
+      const knock = Math.sin(2 * Math.PI * (150 + Math.random() * 30) * (i / rate)) * Math.exp(-t * 26) * 0.4
+      d[i] = (last * 2.0 + white * 0.2 + knock) * env * 0.6
+    }))
+    this.buffers.set('stepCarpet', make((d, t, i) => {
+      // abafado: sem ataque, só o "fump"
+      const white = Math.random() * 2 - 1
+      last = last * 0.95 + white * 0.05
+      d[i] = last * 1.6 * Math.exp(-t * 9) * 0.5
+    }))
+    this.buffers.set('stepBoard', make((d, t, i) => {
+      // rangido curto de tábua: serra que sobe e engasga
+      const f = 210 + Math.sin(t * 30) * 60 + t * 90
+      const saw = 2 * ((i / rate) * f % 1) - 1
+      d[i] = saw * Math.exp(-t * 4.2) * 0.32 * (0.6 + 0.4 * Math.sin(t * 55))
+    }))
+
+    // ── pegar item: som depende do que é (pedido do criador) ─────────────
+    this.buffers.set('pickupKey', make((d, t, i) => {
+      // metal tilintando: dois parciais desafinados
+      const env = Math.exp(-t * 6)
+      d[i] =
+        (Math.sin(2 * Math.PI * 1850 * (i / rate)) * 0.5 +
+          Math.sin(2 * Math.PI * 2430 * (i / rate)) * 0.35 +
+          (Math.random() * 2 - 1) * 0.15 * Math.exp(-t * 40)) *
+        env *
+        0.3
+    }))
+    this.buffers.set('pickupPaper', make((d, t, i) => {
+      const white = Math.random() * 2 - 1
+      d[i] = white * 0.5 * Math.exp(-t * 8) * (0.5 + 0.5 * Math.sin(t * 90))
+    }))
+    this.buffers.set('pickupTool', make((d, t, i) => {
+      const env = Math.exp(-t * 9)
+      d[i] = (Math.sin(2 * Math.PI * 320 * (i / rate)) + 0.6 * Math.sin(2 * Math.PI * 512 * (i / rate))) * env * 0.35
+    }))
+    this.buffers.set('pickupCloth', make((d, t, i) => {
+      const white = Math.random() * 2 - 1
+      last = last * 0.9 + white * 0.1
+      d[i] = last * 1.4 * Math.exp(-t * 11) * 0.45
+    }))
+
+    // ── impacto / quebrar / óleo / voz ───────────────────────────────────
+    this.buffers.set('drop', make((d, t, i) => {
+      const env = Math.exp(-t * 11)
+      const body = Math.sin(2 * Math.PI * (120 - t * 60) * (i / rate)) * env
+      const clack = (Math.random() * 2 - 1) * Math.exp(-t * 60) * 0.5
+      d[i] = (body * 0.6 + clack) * 0.7
+    }))
+    this.buffers.set('glass', make((d, t, i) => {
+      const env = Math.exp(-t * 5)
+      const white = Math.random() * 2 - 1
+      const shimmer = Math.sin(2 * Math.PI * (2600 + Math.random() * 900) * (i / rate))
+      d[i] = (white * 0.4 + shimmer * 0.5) * env * 0.45
+    }))
+    this.buffers.set('oil', make((d, t, i) => {
+      // esguicho curto + goteira
+      const white = Math.random() * 2 - 1
+      const gurgle = Math.sin(2 * Math.PI * (90 + Math.sin(t * 12) * 40) * (i / rate))
+      d[i] = (white * 0.25 + gurgle * 0.3) * Math.exp(-t * 5) * 0.5
+    }))
+    this.buffers.set('groan', make((d, t, i) => {
+      // gemido de esforço (sem palavras): formante grave que sobe e cai
+      const f = 96 + Math.sin(t * 3) * 22 + t * 18
+      const ph = (i / rate) * f
+      const voice = Math.sin(2 * Math.PI * ph) * 0.6 + Math.sin(2 * Math.PI * ph * 2) * 0.25
+      const breath = (Math.random() * 2 - 1) * 0.08
+      d[i] = (voice + breath) * Math.exp(-t * 2.4) * Math.sin(t * Math.PI) * 0.4
+    }))
+    this.buffers.set('clock', make((d, t, i) => {
+      // tique-taque: dois ataques secos
+      const hit = Math.exp(-t * 120) + Math.exp(-Math.abs(t - 0.5) * 120)
+      d[i] = (Math.random() * 2 - 1) * hit * 0.5 + Math.sin(2 * Math.PI * 1800 * (i / rate)) * hit * 0.2
+    }))
+    this.buffers.set('sting', make((d, t, i) => {
+      // jumpscare: cluster dissonante, ataque instantâneo (sem rampa)
+      const a = Math.sin(2 * Math.PI * (58 + t * 12) * (i / rate))
+      const b = Math.sin(2 * Math.PI * (61.5 - t * 9) * (i / rate))
+      const noise = (Math.random() * 2 - 1) * 0.6
+      d[i] = (a + b + noise) * Math.exp(-t * 2.2) * 0.85
+    }))
+
     // Alias dos nomes que o POI usa → buffer sintetizado disponível.
     for (const [alias, src] of [
       ['drawer', 'creak'],
@@ -137,7 +236,9 @@ export class AudioSystem {
       ['unlock', 'pickup'],
       ['hide', 'thump'],
       ['unhide', 'thump'],
-      ['puzzle', 'pickup'],
+      ['unlock', 'pickup'],
+      ['board', 'stepBoard'],
+      ['denied', 'denied'],
     ]) {
       if (!this.buffers.has(alias)) this.buffers.set(alias, this.buffers.get(src))
     }
@@ -238,13 +339,27 @@ export class AudioSystem {
     return true
   }
 
-  /** Passo: volume escala com a velocidade e um jitter de tom (não robótico). */
-  footstep({ loudness = 0.4, sprint = false, position }) {
-    this.play('footstep', {
+  /**
+   * Passo: o som depende da SUPERFÍCIE e da postura (pedido do criador).
+   * @param {{loudness?:number, crouch?:boolean, surface?:string, position?:object}} opts
+   */
+  footstep({ loudness = 0.4, crouch = false, surface = 'wood', position } = {}) {
+    const name = surface === 'board' ? 'stepBoard' : surface === 'carpet' ? 'stepCarpet' : 'stepWood'
+    this.play(name, {
       position,
-      gain: 0.25 + loudness * 0.75,
-      rate: sprint ? 1.12 : 0.94 + Math.random() * 0.12,
+      gain: (0.25 + loudness * 0.75) * (crouch ? 0.45 : 1),
+      rate: (crouch ? 0.82 : 0.94) + Math.random() * 0.12,
     })
+  }
+
+  /**
+   * Pegar item: o som depende do QUE foi pego (metal tilinta, papel farfalha,
+   * ferramenta bate, pano é abafado).
+   * @param {string} itemId
+   */
+  pickup(itemId, position) {
+    const name = PICKUP_SFX[itemId] ?? 'pickup'
+    this.play(name, { position, gain: 0.85, rate: 0.97 + Math.random() * 0.08 })
   }
 
   creak(position, gain = 0.6) {

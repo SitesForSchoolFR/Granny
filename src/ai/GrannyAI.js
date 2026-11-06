@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { GRANNY, PLAYER } from '../core/config.js'
+import { GRANNY, NOISE_RADIUS, PLAYER } from '../core/config.js'
 import { Ev } from '../core/events.js'
 
 export const AIState = Object.freeze({
@@ -38,6 +38,10 @@ export class GrannyAI {
     this.bus = bus ?? null
     this.audio = audio ?? null
     this.scale = { sight: 1, chase: 1, hearing: 1, ...scale }
+    /** false no modo Prática. */
+    this.enabled = true
+    /** @type {{door: object, t: number}|null} porta sendo aberta (2s). */
+    this.opening = null
 
     this.position = new THREE.Vector3()
     this.facing = 0
@@ -83,7 +87,18 @@ export class GrannyAI {
     return group
   }
 
+  /** Modo Prática desliga a perseguidora sem tirá-la do mundo. */
+  setEnabled(on) {
+    this.enabled = !!on
+    if (!on) {
+      this.opening = null
+      this.path = []
+      this.pathIndex = 0
+    }
+  }
+
   spawn(point) {
+    this.opening = null
     const free = this.world.nearestFree(point.x, point.z, GRANNY.radius + 0.05)
     this.position.set(free.x, 0, free.z)
     this.object3D.position.copy(this.position)
@@ -140,6 +155,10 @@ export class GrannyAI {
     const heard = this.noise.consume({
       x: this.position.x,
       z: this.position.z,
+      // O raio de cada evento vem da tabela NOISE_RADIUS (doc §6.2); aqui só
+      // entra o multiplicador da dificuldade. O raio antigo fica como teto
+      // de segurança para eventos sem raio explícito.
+      hearingScale: this.scale.hearing,
       hearingRadius: GRANNY.hearingRadiusPerLoudness * this.scale.hearing,
     })
     if (heard.length === 0) return
@@ -202,19 +221,45 @@ export class GrannyAI {
       { x: this.position.x + (dx / dist) * step, z: this.position.z + (dz / dist) * step },
       { radius: GRANNY.radius, height: GRANNY.height, step: 0.3, feetY: this.position.y },
     )
-    // Se bateu numa porta fechada, tenta abrir: ruído de "bater" + abrir.
+    // Se bateu numa porta fechada, ABRE — mas leva 2s (pedido do criador, em
+    // qualquer dificuldade). São 2 segundos de aviso sonoro antes dela passar.
     if (resolved.blocked) {
       const door = this.house.nearestDoor({ x: resolved.x, z: resolved.z }, 1.9)
       if (door && !door.isOpen && !door.locked) {
-        const res = door.toggle()
-        if (res.ok) {
-          this.noise?.emit({ position: door.center, loudness: res.loudness, type: 'door', source: 'granny' })
-          this.audio?.creak?.(door.center, 0.7)
+        if (this.opening?.door !== door) {
+          this.opening = { door, t: 0 }
+          // Rangido baixo no começo: quem estiver perto ouve a maçaneta.
+          this.noise?.emit({
+            position: door.center,
+            loudness: 0.12,
+            radius: NOISE_RADIUS.door * 0.35,
+            type: 'doorHandle',
+            source: 'granny',
+          })
+          this.audio?.creak?.(door.center, 0.35)
         }
+        this.opening.t += dt
+        if (this.opening.t >= GRANNY.doorOpenTime) {
+          const res = this.opening.door.toggle()
+          if (res.ok) {
+            this.noise?.emit({
+              position: door.center,
+              loudness: res.loudness,
+              radius: door.creak >= 0.5 ? NOISE_RADIUS.creakyDoor : NOISE_RADIUS.door,
+              type: 'door',
+              source: 'granny',
+            })
+            this.audio?.creak?.(door.center, 0.7)
+          }
+          this.opening = null
+        }
+      } else {
+        this.opening = null
       }
       this.repathTimer = 0.35 // reavalia a rota em instantes
       return false
     }
+    this.opening = null
     this.position.x = resolved.x
     this.position.z = resolved.z
     this.position.y = this.world.groundHeight(resolved.x, resolved.z, this.position.y, 0.3)
@@ -224,6 +269,11 @@ export class GrannyAI {
   /** @param {object} player PlayerController */
   update(dt, player) {
     if (!player) return
+    // Modo Prática: a Granny não existe (as aranhas continuam — doc §4).
+    if (this.enabled === false) {
+      this.noise?.consume({ x: this.position.x, z: this.position.z })
+      return
+    }
     this.#listen()
     const seen = this.canSee(player)
 

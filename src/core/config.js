@@ -79,7 +79,13 @@ export const GRANNY = Object.freeze({
   height: 1.95,
   patrolSpeed: 1.35,
   investigateSpeed: 2.35,
-  chaseSpeed: 3.35,
+  /** Igual ao jogador (3.0) no Normal — o multiplicador vem da dificuldade. */
+  chaseSpeed: 3.0,
+  /**
+   * Toda porta leva 2s para ser aberta pela Granny, em qualquer modo: dá
+   * aviso sonoro antes dela aparecer (pedido do criador).
+   */
+  doorOpenTime: 2,
   /** Campo de visão (graus) e alcance máximo de visão. */
   fovDegrees: 105,
   sightRange: 16,
@@ -110,10 +116,14 @@ export const HOUSE = Object.freeze({
    * vão da porta.
    */
   spawnYaw: -Math.PI / 2,
-  fogColor: 0x07080a,
-  fogDensity: 0.055,
-  /** Luz ambiente mínima — o jogo é escuro, mas nunca 100% cego. */
-  ambient: 0.09,
+  fogColor: 0x0b0d11,
+  fogDensity: 0.038,
+  /**
+   * Luz ambiente mínima — o jogo é escuro, mas nunca 100% cego.
+   * Valor antigo (0.09) deixava a casa escura DEMAIS no console: subiu para
+   * 0.2 e o jogador ainda regula em Opções → brilho.
+   */
+  ambient: 0.2,
   lanternRange: 11,
   lanternIntensity: 26,
 })
@@ -129,7 +139,31 @@ export const AUDIO = Object.freeze({
   rolloffFactor: 1.35,
 })
 
+/**
+ * Raio de alcance de cada tipo de barulho (doc Parte 3 §6.2), em unidades.
+ * Aqui o número é DISTÂNCIA, não "volume": é isso que a IA compara com a
+ * distância dela até o evento.
+ */
+export const NOISE_RADIUS = Object.freeze({
+  footstep: 8, // passo andando normal
+  crouch: 3, // passo agachado
+  door: 12, // porta de madeira comum
+  creakyDoor: 16, // porta de metal/rangendo
+  drop: 10, // derrubar objeto pequeno
+  break: 20, // derrubar objeto grande / quebrar vidro
+  floorboard: 18, // tábua barulhenta
+  tool: 16, // usar ferramenta (martelo, serrote)
+  distraction: 15, // item de distração no ponto de impacto
+  interact: 6, // revistar/guardar
+  oil: 3, // aplicar óleo (quase nada)
+})
+
 export const NOISE = Object.freeze({
+  /**
+   * Eventos expiram em ~0.5s: são momentâneos (doc §6.5).
+   * Sem isso, um barulho de 30s atrás ainda "existe" na fila.
+   */
+  ttl: 0.5,
   /** Loudness 1.0 => audível até hearingRadius * 1 (m). */
   maxRadius: 26,
   /** Ruído abaixo disso é descartado (evita spam de eventos). */
@@ -144,32 +178,94 @@ export const QUALITY = Object.freeze({
   high: Object.freeze({ pixelRatioCap: 2.0, shadows: true, shadowMapSize: 2048, fog: true }),
 })
 
+/**
+ * Cinco modos (pedido do criador). Sempre 5 noites: a dificuldade mexe em
+ * VELOCIDADE, RUÍDO e ATALHOS — nunca em quantidade de vidas.
+ *
+ * Velocidade de referência: o jogador anda a 3.0 u/s (PLAYER.walkSpeed).
+ * chaseScale é multiplicador sobre GRANNY.chaseSpeed (3.0):
+ *   Fácil 0.87 (ela é mais lenta) · Normal 1.0 (EMPATE) ·
+ *   Difícil 1.10 (ela é mais rápida) · Extreme 1.30 (muito mais rápida).
+ */
 export const DIFFICULTY = Object.freeze({
+  practice: Object.freeze({
+    label: 'Prática',
+    maxCaught: 5,
+    /** Sem Granny — mas as duas aranhas continuam na casa. */
+    granny: false,
+    spiders: true,
+    grannySightScale: 0,
+    grannyChaseScale: 0,
+    hearingScale: 0.5,
+    itemCount: 4,
+    /** Fração das tábuas barulhentas que ficam ativas neste modo. */
+    boardScale: 1,
+    /** Modo Fácil esconde o indicador de ruído do HUD (só o som avisa). */
+    showNoiseHud: true,
+    /** Chance de ganhar +1 noite quando a última se esgota. */
+    extraDayChance: 0,
+    lockShortcuts: false,
+  }),
   easy: Object.freeze({
     label: 'Fácil',
-    maxCaught: 7,
-    grannySightScale: 0.7,
-    grannyChaseScale: 0.85,
-    hearingScale: 0.7,
+    maxCaught: 5,
+    granny: true,
+    spiders: true,
+    grannySightScale: 0.85,
+    grannyChaseScale: 0.87,
+    hearingScale: 0.8,
     itemCount: 3,
+    boardScale: 0.5, // menos barulhos no chão
+    showNoiseHud: false, // sem símbolo de ruído no canto: só o som
+    extraDayChance: 0,
+    lockShortcuts: false,
   }),
   normal: Object.freeze({
     label: 'Normal',
     maxCaught: 5,
+    granny: true,
+    spiders: true,
     grannySightScale: 1,
-    grannyChaseScale: 1,
+    grannyChaseScale: 1, // mesma velocidade do jogador
     hearingScale: 1,
     itemCount: 4,
+    boardScale: 1,
+    showNoiseHud: true,
+    extraDayChance: 0.35, // chance de ganhar mais um dia
+    lockShortcuts: false,
   }),
-  nightmare: Object.freeze({
-    label: 'Pesadelo',
-    maxCaught: 3,
-    grannySightScale: 1.25,
-    grannyChaseScale: 1.12,
-    hearingScale: 1.3,
+  hard: Object.freeze({
+    label: 'Difícil',
+    maxCaught: 5,
+    granny: true,
+    spiders: true,
+    grannySightScale: 1.15,
+    grannyChaseScale: 1.1, // um pouco mais rápida que você
+    hearingScale: 1.2,
     itemCount: 5,
+    boardScale: 1.5, // mais barulhos no chão
+    showNoiseHud: true,
+    extraDayChance: 0,
+    lockShortcuts: false,
+  }),
+  extreme: Object.freeze({
+    label: 'Extreme',
+    maxCaught: 5,
+    granny: true,
+    spiders: true,
+    grannySightScale: 1.3,
+    grannyChaseScale: 1.3, // muito mais rápida
+    hearingScale: 1.35,
+    itemCount: 5,
+    boardScale: 2, // muito mais barulho pela casa
+    showNoiseHud: true,
+    extraDayChance: 0,
+    lockShortcuts: true, // todos os atalhos trancados
   }),
 })
+
+/** Ordem em que os modos aparecem no menu. */
+export const DIFFICULTY_ORDER = Object.freeze(['practice', 'easy', 'normal', 'hard', 'extreme'])
 
 export const SAVE = Object.freeze({
   key: 'escape-house:save',
@@ -196,7 +292,9 @@ export const DEFAULT_BINDINGS = Object.freeze({
   pause: ['Escape'],
   // Extras do projeto (não conflitam com a tabela do doc).
   lantern: ['KeyL'],
-  use: ['KeyF', 'Space'],
+  use: ['KeyF'],
+  /** Espaço ARREMESSA o item da mão (pedido do criador). */
+  throw: ['Space'],
   map: ['KeyM'],
   debug: ['Backquote'],
 })

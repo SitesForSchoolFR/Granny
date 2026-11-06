@@ -11,6 +11,13 @@ export const ITEMS = Object.freeze({
   /** Primeiro micro-puzzle do jogo (doc Parte 2 §1): abre o quarto inicial. */
   key_room: Object.freeze({ label: 'chave do quarto', glyph: '🔑', usable: false, unlocks: 'start_room' }),
   battery: Object.freeze({ label: 'pilha', glyph: '🔋', usable: true, unlocks: null }),
+  /**
+   * Óleo (doc §6.4): remove para sempre o rangido de uma tábua.
+   * `uses` = aplicações por frasco.
+   */
+  oil: Object.freeze({ label: 'óleo lubrificante', glyph: '🫙', usable: true, unlocks: null, uses: 3 }),
+  /** Item de distração (doc §6.6): arremessar puxa a atenção da IA. */
+  jar: Object.freeze({ label: 'pote de vidro', glyph: '🫙', usable: false, unlocks: null, throwable: true }),
 })
 
 /** Itens que o sorteio de início de run pode espalhar pela casa. */

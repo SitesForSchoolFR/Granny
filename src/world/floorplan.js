@@ -22,7 +22,8 @@ export const MAP_ROWS = [
   '#####################',
   // Quarto inicial (x1-3, z1-3): 3x3 células, fechado. A única saída é a
   // porta trancada em (4,2) — primeiro micro-puzzle do jogo (doc §1).
-  '#.8.#.....#.........#',
+  // D em (10,2): atalho quarto ↔ escritório (sem ele, dá a volta pelo corredor)
+  '#.8.#.....D.........#',
   // S = onde acorda. A porta do quarto (D) fica NA MESMA LINHA do spawn:
   // andar para frente já encara o vão, em vez de bater na quina.
   '#.S.D..1..#....2....#',
@@ -33,11 +34,13 @@ export const MAP_ROWS = [
   '#.............G.....#',
   '###D#######D#####D###',
   '#.........#.........#',
-  '#....3....#....4....#',
+  // D em (10,9): atalho cozinha ↔ sala
+  '#....3....D....4....#',
   '#.........#.........#',
   '####D######D####D####',
   '#.......#.....#.....#',
-  '#..5.6..#.....#..7..#',
+  // D em (8,13) despensa ↔ sala de jantar; D em (14,13) jantar ↔ banheiro
+  '#..5.6..D.....D..7..#',
   '#.......#.....#.....#',
   '###########E#########',
 ]
@@ -82,10 +85,12 @@ export const POI_SLOTS = {
 
 /** Móveis: célula central, tamanho em célula e altura. Bloqueiam visão e corpo. */
 export const PROPS = [
-  // Quarto inicial: a cama de onde o jogador acorda (doc Parte 2 §1); o
-  // criado-mudo ao lado é o POI_SLOTS[8], onde a chave sempre está.
-  { room: 'start', at: [0, 0], size: [1.4, 0.9], height: 0.5, label: 'cama' },
-  { room: 'bedroom', at: [2, 1], size: [2, 1.2], height: 0.55, label: 'cama' },
+  // `at` é a CÉLULA ABSOLUTA da planta (não é relativa ao cômodo) e `size` é
+  // em METROS — erro clássico aqui: multiplicar size pela célula (3m) deixava
+  // a cama com 5,7 x 3,6 m, do tamanho de dois cômodos.
+  // Quarto inicial: cama onde o jogador acorda, ao lado do criado-mudo (POI 8).
+  { room: 'start', at: [1, 1], size: [1.4, 0.9], height: 0.5, label: 'cama' },
+  { room: 'bedroom', at: [6, 1], size: [2, 1.2], height: 0.55, label: 'cama' },
   { room: 'bedroom', at: [7, 1], size: [1, 1], height: 1.7, label: 'guarda-roupa' },
   { room: 'study', at: [13, 2], size: [2, 1], height: 0.78, label: 'escrivaninha' },
   { room: 'study', at: [18, 1], size: [1.2, 0.9], height: 1.8, label: 'estante' },
@@ -115,8 +120,21 @@ export const DOOR_LOCKS = Object.freeze({
  * Parte 3 detalha como a Granny interpreta o ruído; aqui só a marcação.
  */
 export const CREAKY_BOARDS = Object.freeze([
+  // Corredores e áreas de passagem (a dificuldade liga só uma fração delas:
+  // Fácil 50%, Normal 100%, Difícil 150%, Extreme 200%).
   { cx: 6, cz: 6, loudness: 0.85 },
-  { cx: 12, cz: 6, loudness: 0.8 },
   { cx: 9, cz: 9, loudness: 0.9 },
+  { cx: 12, cz: 6, loudness: 0.8 },
   { cx: 11, cz: 13, loudness: 0.75 },
+  { cx: 3, cz: 6, loudness: 0.85 },
+  { cx: 16, cz: 6, loudness: 0.8 },
+  { cx: 5, cz: 10, loudness: 0.9 },
+  { cx: 14, cz: 13, loudness: 0.75 },
 ])
+
+/**
+ * Atalhos: portas que encurtam caminho pela casa. No Extreme todas ficam
+ * trancadas (pedido do criador). São escolhidas de forma que TIRAR as três
+ * não desconecte o mapa — o smoke confere isso.
+ */
+export const DOOR_SHORTCUTS = Object.freeze(['10,1', '10,9', '8,13', '14,13'])
