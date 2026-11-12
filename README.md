@@ -29,6 +29,7 @@ A recriação, em **GitHub Pages**, dos 5 links de jogos (WebSight / LinkDuper) 
 index.html   → página única (hero, jogos paginados, downloads, links)
 style.css    → todo o visual (tema escuro, gradiente violeta/ciano)
 app.js       → dados dos jogos, paginação, partículas, cursor, configurações, espelhos, downloads
+images/      → as 130 capas, **hospedadas no próprio site** (o filtro da escola não intercepta; jsDelivr vira fallback)
 ```
 
 ## Como funciona o "Jogar"

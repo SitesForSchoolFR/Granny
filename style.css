@@ -714,3 +714,27 @@ html.reduce { scroll-behavior: auto; }
   #cur-dot, #cur-ring { display: none !important; }
   html.cursor-on, html.cursor-on * { cursor: auto !important; }
 }
+
+/* ---------------- Aviso de falha de carga (watchdog) ---------------- */
+.boot-fail {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(6, 6, 12, .82); backdrop-filter: blur(6px);
+  padding: 20px;
+}
+.boot-fail[hidden] { display: none; }
+.boot-fail-card {
+  max-width: 420px; width: 100%;
+  background: linear-gradient(160deg, #12121f, #0d0d16);
+  border: 1px solid #2a2a44; border-radius: 18px;
+  padding: 30px 28px; text-align: center;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+}
+.boot-fail-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 10px; }
+.boot-fail-text { color: #9a9ab8; font-size: .92rem; line-height: 1.55; margin-bottom: 20px; }
+.boot-fail-card button {
+  font: inherit; font-weight: 600; color: #fff; cursor: pointer;
+  background: linear-gradient(90deg, #8b7cf7, #5eead4);
+  border: none; border-radius: 10px; padding: 11px 22px;
+}
+.boot-fail-card button:hover { filter: brightness(1.1); }
