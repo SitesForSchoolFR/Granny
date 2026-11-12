@@ -14,7 +14,7 @@ A recriação, em **GitHub Pages**, dos 5 links de jogos (WebSight / LinkDuper) 
 - **Paginação** — 24 jogos por página (fileiras e colunas); nada é carregado de uma vez
 - **Jogar em `about:blank`** — como no site original: cada jogo abre numa janela `about:blank`
 - **Espelhos (mirrors)** — botão 🔗 em cada card: vários CDNs/hosts do mesmo jogo (jsDelivr, githack, esm.sh, p5js, npm…) para quando a escola bloqueia um
-- **Tabela de downloads** — todos os arquivos reais dos repositórios (jogos `.html`, zips, ROMs, parts), com tamanho e botão de download direto
+- **Tabela de downloads** — todos os 77 arquivos reais dos repositórios (jogos `.html`, zips, ROMs, parts), com tamanho e botão de download direto
 - **Mantle Launcher** (getmantle.pages.dev) — card com o site de download + 3 relays que abrem o Mantle no navegador
 - **Os 5 links originais** — seção dedicada com status (4 ativos, 1 offline)
 - **Partículas** — fundo estrelado animado em canvas (baixa / média / alta)

@@ -779,7 +779,9 @@ function renderPager(pages) {
     else b.addEventListener('click', () => { state.page = page; renderPage(); });
     return b;
   };
-  pager.appendChild(mk('‹', state.page - 1, { disabled: state.page === 1 }));
+  const prev = mk('‹', state.page - 1, { disabled: state.page === 1 });
+  prev.setAttribute('aria-label', 'Página anterior');
+  pager.appendChild(prev);
   const win = new Set([1, 2, pages - 1, pages, state.page - 1, state.page, state.page + 1]);
   let last = 0;
   for (let p = 1; p <= pages; p++) {
@@ -793,7 +795,9 @@ function renderPager(pages) {
     pager.appendChild(mk(String(p), p, { active: p === state.page }));
     last = p;
   }
-  pager.appendChild(mk('›', state.page + 1, { disabled: state.page === pages }));
+  const next = mk('›', state.page + 1, { disabled: state.page === pages });
+  next.setAttribute('aria-label', 'Página seguinte');
+  pager.appendChild(next);
 }
 
 function renderPage() {
