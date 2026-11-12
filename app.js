@@ -48,6 +48,19 @@ function rawURL(ref) {
   const k = ref[0], f = enc(ref.slice(2));
   return (k === 'u' ? RAW_U : RAW_R) + f;
 }
+/* Espelho (githack) — host feito para iframes, usado se o jsDelivr falhar */
+function mirrorURL(ref) {
+  if (!ref || ref === 'w' || ref.startsWith('http')) return '';
+  const k = ref[0], f = enc(ref.slice(2));
+  return (k === 'u' ? GITHACK_U : GITHACK_R) + f;
+}
+/* Janela de jogo: página do NEBULA com o jogo em iframe (contorna bloqueios de CDN) */
+function viewerURL(main, fallback, name) {
+  const v = new URL('jogo.html', location.href).href;
+  return v + '?g=' + encodeURIComponent(main) +
+    (fallback ? '&fb=' + encodeURIComponent(fallback) : '') +
+    '&n=' + encodeURIComponent(name);
+}
 const isWebGame = g => !g[2] || g[2] === 'w';
 const isDirect = g => g[2] && g[2] !== 'w';
 
@@ -84,7 +97,7 @@ let loadHinted = false;
 function loadHint() {
   if (loadHinted) return;
   loadHinted = true;
-  toast('🎮 Dica: se aparecer uma tela preta com o botão “Load”, clique nele para iniciar o jogo!', 5200);
+  toast('🎮 Dica: se aparecer um botão “PLAY” ou “Load”, clique nele para iniciar o jogo!', 5200);
 }
 
 /* Download real (fetch → blob) */
@@ -723,8 +736,10 @@ function makeCard(g) {
   bPlay.innerHTML = ICON_PLAY + '<span>Jogar</span>';
   bPlay.setAttribute('aria-label', 'Jogar ' + name + ' (abre em about:blank)');
   bPlay.addEventListener('click', () => {
-    if (isWebGame(g)) webHint(); else loadHint();
-    openInBlank(jsdURL(play));
+    if (isWebGame(g)) { webHint(); openInBlank(W0); return; }
+    loadHint();
+    if (play.startsWith('http')) { openInBlank(play); return; }
+    openInBlank(viewerURL(jsdURL(play), mirrorURL(play), name));
   });
 
   const bDl = document.createElement('button');
@@ -934,7 +949,11 @@ function renderFiles() {
       bp.className = 'btn btn-play btn-xs';
       bp.dataset.cursor = '';
       bp.innerHTML = ICON_PLAY + '<span>Jogar</span>';
-      bp.addEventListener('click', () => { loadHint(); openInBlank(jsd); });
+      bp.addEventListener('click', () => {
+        loadHint();
+        const fname = path.split('/').pop();
+        openInBlank(viewerURL(jsd, (repo === 'u' ? GITHACK_U : GITHACK_R) + enc(path), fname));
+      });
       tdAct.appendChild(bp);
     }
     const bd = document.createElement(ext === 'html' || ext === 'js' ? 'button' : 'a');

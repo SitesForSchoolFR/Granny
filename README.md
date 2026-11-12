@@ -34,12 +34,15 @@ app.js       → dados dos jogos, paginação, partículas, cursor, configuraç�
 ## Como funciona o "Jogar"
 
 1. O site abre uma janela `about:blank`
-2. Em seguida, redireciona essa janela para o URL do jogo:
+2. Em seguida, abre a **janela de jogo do NEBULA** (`jogo.html`), que exibe o jogo **em iframe**:
    - **Arquivos diretos** (Doom, GTA, Mario…): servidos pelo jsDelivr a partir dos repositórios públicos `Onex558/uranium-source-` e `Onex558/retro-games-`
    - **GN-Math v1**: `raw.esm.sh` (repo `Why2ITry/gn-math-links-2-1`)
    - **GN-Math 2.0 / DuckMath**: npm/esm.sh/p5js (com espelhos)
    - **Demais jogos**: abrem no site original (WebSight via Google Apps Script)
-3. Alguns jogos mostram uma tela preta com um botão **“Load”** — é só clicar para começar (o site avisa isso)
+3. O iframe contorna bloqueios de rede escolar (que costumam interceptar a navegação direta ao CDN e mostrar só o código)
+4. Se o espelho principal falhar, a janela **troca automaticamente** para o alternativo (githack); há botões “Espelho” e “Abrir direto” na barra
+5. Alguns jogos mostram um botão **“PLAY” ou “Load”** — é só clicar para começar (a janela avisa isso)
+6. `Esc` fecha a janela do jogo
 
 ## Os 5 links
 
