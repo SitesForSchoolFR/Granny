@@ -38,6 +38,11 @@ function coverURL(c) {
   const i = c.lastIndexOf('@');
   return JSD + c.slice(0, i + 1) + enc(c.slice(i + 1));
 }
+/* CAPA local (hospedada no próprio site) — mesma origem, o filtro da escola não intercepta */
+function localCoverURL(c) {
+  const name = c.split('images/').pop();
+  try { return new URL('images/' + enc(name), location.href).href; } catch (e) { return ''; }
+}
 function jsdURL(ref) {
   if (ref.startsWith('http')) return ref;
   const k = ref[0], f = enc(ref.slice(2));
@@ -713,21 +718,24 @@ let rx = mx, ry = my, rs = 1, ts = 1;
 let cursorOn = false;
 let ringHover = false;
 
+let cursorRaf = null;
 function cursorLoop() {
-  if (cursorOn) {
-    rx += (mx - rx) * .16;
-    ry += (my - ry) * .16;
-    rs += (ts - rs) * .2;
-    dot.style.transform = 'translate(' + mx + 'px,' + my + 'px) translate(-50%,-50%)';
-    ring.style.transform = 'translate(' + rx + 'px,' + ry + 'px) translate(-50%,-50%) scale(' + rs.toFixed(3) + ')';
-  }
-  requestAnimationFrame(cursorLoop);
+  cursorRaf = null;
+  if (!cursorOn) return;
+  rx += (mx - rx) * .16;
+  ry += (my - ry) * .16;
+  rs += (ts - rs) * .2;
+  dot.style.transform = 'translate(' + mx + 'px,' + my + 'px) translate(-50%,-50%)';
+  ring.style.transform = 'translate(' + rx + 'px,' + ry + 'px) translate(-50%,-50%) scale(' + rs.toFixed(3) + ')';
+  cursorRaf = requestAnimationFrame(cursorLoop);
 }
+function startCursorLoop() { if (cursorOn && cursorRaf === null) cursorRaf = requestAnimationFrame(cursorLoop); }
 
 function cursorApply() {
   cursorOn = S.cursor && FINE;
   document.documentElement.classList.toggle('cursor-on', cursorOn);
   if (!cursorOn) { dot.style.opacity = 0; ring.style.opacity = 0; }
+  else startCursorLoop();
 }
 
 if (FINE) {
@@ -744,7 +752,7 @@ if (FINE) {
   }, { passive: true });
   document.addEventListener('mouseleave', () => { dot.style.opacity = 0; ring.style.opacity = 0; });
   document.addEventListener('mouseenter', () => { if (cursorOn) { dot.style.opacity = 1; ring.style.opacity = 1; } });
-  requestAnimationFrame(cursorLoop);
+  startCursorLoop();
 }
 
 /* ---------------- Render: jogos (com paginação) ---------------- */
@@ -779,9 +787,21 @@ function makeCard(g) {
     img.loading = 'lazy';
     img.decoding = 'async';
     img.alt = 'Capa de ' + name;
-    img.src = coverURL(cover);
-    img.addEventListener('load', () => img.classList.add('loaded'));
-    img.addEventListener('error', () => img.remove());
+    /* 1º o site próprio, depois jsDelivr; cada tentativa tem timeout de 10s (rede travando não deixa capa em branco) */
+    const urls = [];
+    const l = localCoverURL(cover);
+    if (l) urls.push(l);
+    urls.push(coverURL(cover));
+    let i = 0;
+    const load = () => {
+      if (i >= urls.length) { img.remove(); return; }
+      img.src = urls[i++];
+      clearTimeout(img._t);
+      img._t = setTimeout(load, 10000);
+    };
+    img.addEventListener('load', () => { clearTimeout(img._t); img.classList.add('loaded'); });
+    img.addEventListener('error', load);
+    load();
     if (img.complete && img.naturalWidth) img.classList.add('loaded');
     coverBox.appendChild(img);
   }
@@ -1179,6 +1199,8 @@ function init() {
   document.querySelectorAll('[data-relay]').forEach(b => {
     b.addEventListener('click', () => openInBlank(b.dataset.relay));
   });
+
+  window.__NEBULA_READY = true; /* o watchdog do index.html confere isso */
 }
 
 document.addEventListener('DOMContentLoaded', init);

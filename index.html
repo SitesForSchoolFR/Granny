@@ -201,6 +201,34 @@
     </div>
   </noscript>
 
-  <script src="app.js?v=4" defer></script>
+  <div id="boot-fail" class="boot-fail" hidden>
+    <div class="boot-fail-card">
+      <p class="boot-fail-title">O site não carregou por completo</p>
+      <p class="boot-fail-text">A rede da escola às vezes atrapalha o download do site. Tente de novo — se continuar assim, atualize a página (F5).</p>
+      <button id="boot-retry" type="button">Tentar de novo</button>
+    </div>
+  </div>
+
+  <script>
+    /* Watchdog: se o app.js não iniciar em ~10s (download corrompido pela rede escolar), avisa e oferece retry */
+    (function () {
+      var t = setTimeout(function () {
+        if (!window.__NEBULA_READY) {
+          var el = document.getElementById('boot-fail');
+          if (el) el.hidden = false;
+        }
+      }, 10000);
+      window.addEventListener('error', function (e) {
+        if (e && e.target && e.target.tagName === 'SCRIPT') {
+          var el = document.getElementById('boot-fail');
+          if (el) el.hidden = false;
+          clearTimeout(t);
+        }
+      }, true);
+      var b = document.getElementById('boot-retry');
+      if (b) b.addEventListener('click', function () { location.reload(); });
+    })();
+  </script>
+  <script src="app.js?v=5" defer></script>
 </body>
 </html>
