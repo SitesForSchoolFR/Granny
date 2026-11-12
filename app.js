@@ -63,12 +63,94 @@ function localURL(ref) {
   const path = (k === 'u' ? 'games/uranium/' : 'games/retro/') + f;
   try { return new URL(path, location.href).href; } catch (e) { return ''; }
 }
-/* Janela de jogo: página do NEBULA com o jogo em iframe (contorna bloqueios de CDN) */
-function viewerURL(main, fallback, name) {
-  const v = new URL('jogo.html', location.href).href;
-  return v + '?g=' + encodeURIComponent(main) +
-    (fallback ? '&fb=' + encodeURIComponent(fallback) : '') +
-    '&n=' + encodeURIComponent(name);
+/* Documento da janela de jogo — escrito DENTRO do about:blank (a aba nunca sai de about:blank) */
+function gameDoc(main, fallback, name) {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const srcs = [main, fallback].filter(Boolean);
+  const n = esc(name);
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEBULA</title>
+<style>
+:root{color-scheme:dark}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:#08080f;color:#e8e8f0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+.bar{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0d0d18;border-bottom:1px solid #23233a;flex:0 0 auto}
+.dot{width:8px;height:8px;border-radius:50%;background:#7c5cff;box-shadow:0 0 10px #7c5cff;flex:0 0 auto}
+.name{font-size:14px;font-weight:600;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp{flex:1}
+button,.home{font:inherit;font-size:12.5px;font-weight:600;color:#e8e8f0;background:#1a1a2e;border:1px solid #34345a;border-radius:8px;padding:5px 12px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button:hover{background:#24244a;border-color:#7c5cff}
+.home{color:#a78bfa;border-color:#3b2f6b}
+.home:hover{background:#241d4a}
+.stage{position:relative;flex:1;min-height:0}
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+.load{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#08080f;z-index:2;transition:opacity .4s}
+.load.off{opacity:0;pointer-events:none}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid #23233a;border-top-color:#7c5cff;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(1turn)}}
+.lt{font-size:12px;color:#8b8ba3;letter-spacing:.14em;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="bar">
+<span class="dot"></span>
+<span class="name">&#10022; ${n}</span>
+<span class="sp"></span>
+<button id="mirror" type="button">Espelho</button>
+<a class="home" href="https://sitesforschoolfr.github.io/Nebula/">NEBULA</a>
+</div>
+<div class="stage">
+<div class="load" id="load"><div class="spin"></div><div class="lt">Carregando</div></div>
+<iframe id="frame" src="${esc(srcs[0])}" allow="fullscreen; gamepad; autoplay; pointer-lock" allowfullscreen></iframe>
+</div>
+<script>
+(function () {
+  var srcs = ${JSON.stringify(srcs)};
+  var cur = 0;
+  var f = document.getElementById('frame');
+  var l = document.getElementById('load');
+  var engaged = false;
+  var t = setTimeout(function () { l.classList.add('off'); }, 25000);
+  f.addEventListener('load', function () { clearTimeout(t); l.classList.add('off'); });
+  f.addEventListener('error', function () {
+    if (srcs.length > 1) { cur = (cur + 1) % srcs.length; l.classList.remove('off'); f.src = srcs[cur]; }
+  });
+  document.getElementById('mirror').addEventListener('click', function () {
+    if (srcs.length < 2) return;
+    cur = (cur + 1) % srcs.length;
+    l.classList.remove('off');
+    f.src = srcs[cur];
+  });
+  document.addEventListener('mousedown', function (e) { if (e.target === f) engaged = true; });
+  document.querySelector('.bar').addEventListener('mousedown', function () { engaged = false; });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || engaged) return;
+    try { window.close(); } catch (err) { location.href = 'https://sitesforschoolfr.github.io/Nebula/'; }
+  });
+})();
+</script>
+</body>
+</html>`;
+}
+
+/* Abre o jogo DENTRO do about:blank — a aba fica como about:blank, nunca uma URL com sobras */
+function openGameWindow(doc, direct) {
+  const w = window.open('about:blank', '_blank');
+  if (!w) { toast('Pop-up bloqueado! Permita pop-ups para este site e tente de novo. 🙏'); return; }
+  try {
+    w.document.open();
+    w.document.write(doc);
+    w.document.close();
+    try { w.opener = null; } catch (e) { /* ok */ }
+  } catch (e) {
+    try { w.close(); } catch (_) { /* ok */ }
+    if (direct) window.open(direct, '_blank', 'noopener');
+  }
 }
 const isWebGame = g => !g[2] || g[2] === 'w';
 const isDirect = g => g[2] && g[2] !== 'w';
@@ -100,13 +182,6 @@ function webHint() {
   if (webHinted) return;
   webHinted = true;
   toast('Esse jogo mora no site original — abri lá pra você! (este aviso aparece só uma vez) ✨', 4600);
-}
-
-let loadHinted = false;
-function loadHint() {
-  if (loadHinted) return;
-  loadHinted = true;
-  toast('🎮 Dica: se aparecer um botão “PLAY” ou “Load”, clique nele para iniciar o jogo!', 5200);
 }
 
 /* Download real (fetch → blob) */
@@ -749,10 +824,11 @@ function makeCard(g) {
   bPlay.setAttribute('aria-label', 'Jogar ' + name + ' (abre em about:blank)');
   bPlay.addEventListener('click', () => {
     if (isWebGame(g)) { webHint(); openInBlank(W0); return; }
-    loadHint();
     if (play.startsWith('http')) { openInBlank(play); return; }
     const local = localURL(play);
-    openInBlank(viewerURL(local || jsdURL(play), local ? jsdURL(play) : mirrorURL(play), name));
+    const main = local || jsdURL(play);
+    const fb = local ? jsdURL(play) : mirrorURL(play);
+    openGameWindow(gameDoc(main, fb, name), main);
   });
 
   const bDl = document.createElement('button');
@@ -963,12 +1039,12 @@ function renderFiles() {
       bp.dataset.cursor = '';
       bp.innerHTML = ICON_PLAY + '<span>Jogar</span>';
       bp.addEventListener('click', () => {
-        loadHint();
         const fname = path.split('/').pop();
         const ref = repo + ':' + path;
         const local = localURL(ref);
-        if (local) openInBlank(viewerURL(local, jsd, fname));
-        else openInBlank(viewerURL(jsd, (repo === 'u' ? GITHACK_U : GITHACK_R) + enc(path), fname));
+        const main = local || jsd;
+        const fb = local ? jsd : (repo === 'u' ? GITHACK_U : GITHACK_R) + enc(path);
+        openGameWindow(gameDoc(main, fb, fname), main);
       });
       tdAct.appendChild(bp);
     }
