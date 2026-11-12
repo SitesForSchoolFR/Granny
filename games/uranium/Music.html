@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Music Library</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --surface-color: #181818;
+            --surface-hover: #282828;
+            --primary-color: #1db954;
+            --danger-color: #e74c3c;
+            --danger-hover: #c0392b;
+            --text-color: #ffffff;
+            --text-secondary: #b3b3b3;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1, h2 {
+            color: var(--text-color);
+        }
+
+        .card {
+            background-color: var(--surface-color);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="file"] {
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background-color: #2a2a2a;
+            color: var(--text-color);
+            font-size: 14px;
+        }
+
+        button.save-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button.save-btn:hover {
+            background-color: #1ed760;
+        }
+
+        .delete-btn {
+            background-color: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 5px;
+            transition: background 0.2s;
+        }
+
+        .delete-btn:hover {
+            background-color: var(--danger-hover);
+        }
+
+        .filter-section {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .filter-section input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background-color: #2a2a2a;
+            color: var(--text-color);
+        }
+
+        .music-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .music-card {
+            background-color: var(--surface-color);
+            border-radius: 8px;
+            padding: 15px;
+            transition: background-color 0.3s;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .music-card:hover {
+            background-color: var(--surface-hover);
+        }
+
+        .music-card img {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+            border-radius: 4px;
+            background-color: #333;
+        }
+
+        .music-info h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+        }
+
+        .music-info p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 5px;
+            height: 35px;
+        }
+
+        .no-music {
+            color: var(--text-secondary);
+            grid-column: span 100;
+            text-align: center;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>My Personal Music Library</h1>
+
+    <!-- Add Music Form -->
+    <div class="card">
+        <h2>Add New Music</h2>
+        <form id="musicForm">
+            <div class="form-group">
+                <label for="musicName">Music Name</label>
+                <input type="text" id="musicName" required placeholder="e.g. Song Title">
+            </div>
+            <div class="form-group">
+                <label for="artistName">Artist Name</label>
+                <input type="text" id="artistName" required placeholder="e.g. Artist Name">
+            </div>
+            <div class="form-group">
+                <label for="albumTitle">Album Title</label>
+                <input type="text" id="albumTitle" required placeholder="e.g. Album Name">
+            </div>
+            <div class="form-group">
+                <label for="imageUrl">Album Image URL (Optional)</label>
+                <input type="text" id="imageUrl" placeholder="Paste image URL here">
+            </div>
+            <div class="form-group">
+                <label for="imageFile">Or Upload Album Image File</label>
+                <input type="file" id="imageFile" accept="image/*">
+            </div>
+            <div class="form-group full-width">
+                <label for="audioFile">Music File (Audio)</label>
+                <input type="file" id="audioFile" accept="audio/*" required>
+            </div>
+            <div class="form-group full-width">
+                <button type="submit" class="save-btn">Save Music</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="filter-section">
+        <input type="text" id="filterInput" placeholder="Filter by artist name...">
+    </div>
+
+    <!-- Music Display Grid -->
+    <h2>Library</h2>
+    <div class="music-grid" id="musicGrid">
+        <!-- Dynamic cards will load here -->
+    </div>
+</div>
+
+<script>
+    let musicLibrary = JSON.parse(localStorage.getItem('myMusicLibrary')) || [];
+
+    const musicForm = document.getElementById('musicForm');
+    const musicGrid = document.getElementById('musicGrid');
+    const filterInput = document.getElementById('filterInput');
+
+    // Helper to read files as Base64 strings
+    function readFileAsDataURL(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Function to render library cards
+    function renderLibrary(filterQuery = '') {
+        musicGrid.innerHTML = '';
+
+        const filteredTracks = musicLibrary.filter(track => 
+            track.artist.toLowerCase().includes(filterQuery.toLowerCase())
+        );
+
+        if (filteredTracks.length === 0) {
+            musicGrid.innerHTML = '<div class="no-music">No music found.</div>';
+            return;
+        }
+
+        filteredTracks.forEach((track) => {
+            const card = document.createElement('div');
+            card.className = 'music-card';
+            card.innerHTML = `
+                <img src="${track.image}" alt="${track.album}">
+                <div class="music-info">
+                    <h3>${track.name}</h3>
+                    <p><strong>Artist:</strong> ${track.artist}</p>
+                    <p><strong>Album:</strong> ${track.album}</p>
+                </div>
+                <audio controls src="${track.audio}"></audio>
+                <button class="delete-btn" onclick="deleteTrack(${track.id})">Delete Song</button>
+            `;
+            musicGrid.appendChild(card);
+        });
+    }
+
+    // Function to delete a track by its unique ID
+    function deleteTrack(id) {
+        musicLibrary = musicLibrary.filter(track => track.id !== id);
+        localStorage.setItem('myMusicLibrary', JSON.stringify(musicLibrary));
+        renderLibrary(filterInput.value);
+    }
+
+    // Handle form submission
+    musicForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const name = document.getElementById('musicName').value;
+        const artist = document.getElementById('artistName').value;
+        const album = document.getElementById('albumTitle').value;
+        
+        const imageUrlInput = document.getElementById('imageUrl').value.trim();
+        const imageFile = document.getElementById('imageFile').files[0];
+        const audioFile = document.getElementById('audioFile').files[0];
+
+        if (!audioFile) {
+            alert("Please select an audio file.");
+            return;
+        }
+
+        try {
+            let imageSource = "";
+
+            if (imageFile) {
+                imageSource = await readFileAsDataURL(imageFile);
+            } else if (imageUrlInput) {
+                imageSource = imageUrlInput;
+            } else {
+                alert("Please either provide an image URL or upload an image file.");
+                return;
+            }
+
+            const audioBase64 = await readFileAsDataURL(audioFile);
+
+            const newTrack = { 
+                id: Date.now(), // Unique identifier for deleting
+                name, 
+                artist, 
+                album, 
+                image: imageSource, 
+                audio: audioBase64 
+            };
+
+            musicLibrary.push(newTrack);
+            
+            // Save to browser LocalStorage
+            localStorage.setItem('myMusicLibrary', JSON.stringify(musicLibrary));
+
+            // Reset form and re-render
+            musicForm.reset();
+            renderLibrary(filterInput.value);
+        } catch (error) {
+            console.error("Error processing files:", error);
+            alert("There was an error processing your files.");
+        }
+    });
+
+    // Handle filter typing
+    filterInput.addEventListener('input', function(e) {
+        renderLibrary(e.target.value);
+    });
+
+    // Initial render on page load
+    renderLibrary();
+</script>
+
+</body>
+</html>

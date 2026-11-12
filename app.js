@@ -54,6 +54,15 @@ function mirrorURL(ref) {
   const k = ref[0], f = enc(ref.slice(2));
   return (k === 'u' ? GITHACK_U : GITHACK_R) + f;
 }
+/* Jogo hospedado NO NOSSO DOMÍNIO (GitHub Pages) — o filtro da escola não intercepta */
+function localURL(ref) {
+  if (!ref || ref === 'w' || ref.startsWith('http')) return '';
+  const f = ref.slice(2);
+  if (f.includes('/')) return ''; /* multi-arquivo (ex: Patrick's) fica no CDN */
+  const k = ref[0];
+  const path = (k === 'u' ? 'games/uranium/' : 'games/retro/') + f;
+  try { return new URL(path, location.href).href; } catch (e) { return ''; }
+}
 /* Janela de jogo: página do NEBULA com o jogo em iframe (contorna bloqueios de CDN) */
 function viewerURL(main, fallback, name) {
   const v = new URL('jogo.html', location.href).href;
@@ -136,16 +145,19 @@ function mirrorsFor(g) {
   }
   if (p.startsWith('http')) return [];
   const k = p[0], f = enc(p.slice(2));
-  if (k === 'u') return [
-    ['cdn.jsdelivr.net', JSD + 'uranium-source-@main/' + f],
-    ['raw.githack.com', GITHACK_U + f],
-    ['raw.githubusercontent.com (baixar)', RAW_U + f],
-  ];
-  return [
-    ['cdn.jsdelivr.net', JSD + 'retro-games-@main/' + f],
-    ['raw.githack.com', GITHACK_R + f],
-    ['raw.githubusercontent.com (baixar)', RAW_R + f],
-  ];
+  const list = [];
+  const local = localURL(p);
+  if (local) list.push(['NEBULA (hospedado neste site)', local]);
+  if (k === 'u') {
+    list.push(['cdn.jsdelivr.net', JSD + 'uranium-source-@main/' + f]);
+    list.push(['raw.githack.com', GITHACK_U + f]);
+    list.push(['raw.githubusercontent.com (baixar)', RAW_U + f]);
+  } else {
+    list.push(['cdn.jsdelivr.net', JSD + 'retro-games-@main/' + f]);
+    list.push(['raw.githack.com', GITHACK_R + f]);
+    list.push(['raw.githubusercontent.com (baixar)', RAW_R + f]);
+  }
+  return list;
 }
 
 /* ---------------- Dados: jogos ----------------
@@ -739,7 +751,8 @@ function makeCard(g) {
     if (isWebGame(g)) { webHint(); openInBlank(W0); return; }
     loadHint();
     if (play.startsWith('http')) { openInBlank(play); return; }
-    openInBlank(viewerURL(jsdURL(play), mirrorURL(play), name));
+    const local = localURL(play);
+    openInBlank(viewerURL(local || jsdURL(play), local ? jsdURL(play) : mirrorURL(play), name));
   });
 
   const bDl = document.createElement('button');
@@ -952,7 +965,10 @@ function renderFiles() {
       bp.addEventListener('click', () => {
         loadHint();
         const fname = path.split('/').pop();
-        openInBlank(viewerURL(jsd, (repo === 'u' ? GITHACK_U : GITHACK_R) + enc(path), fname));
+        const ref = repo + ':' + path;
+        const local = localURL(ref);
+        if (local) openInBlank(viewerURL(local, jsd, fname));
+        else openInBlank(viewerURL(jsd, (repo === 'u' ? GITHACK_U : GITHACK_R) + enc(path), fname));
       });
       tdAct.appendChild(bp);
     }

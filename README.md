@@ -35,7 +35,7 @@ app.js       → dados dos jogos, paginação, partículas, cursor, configuraç�
 
 1. O site abre uma janela `about:blank`
 2. Em seguida, abre a **janela de jogo do NEBULA** (`jogo.html`), que exibe o jogo **em iframe**:
-   - **Arquivos diretos** (Doom, GTA, Mario…): servidos pelo jsDelivr a partir dos repositórios públicos `Onex558/uranium-source-` e `Onex558/retro-games-`
+   - **Arquivos diretos** (Doom, GTA, Mario…): **hospedados no próprio site** (pasta `games/`, domínio GitHub Pages liberado na escola) — o emulador e as ROMs ainda vêm dos CDNs públicos
    - **GN-Math v1**: `raw.esm.sh` (repo `Why2ITry/gn-math-links-2-1`)
    - **GN-Math 2.0 / DuckMath**: npm/esm.sh/p5js (com espelhos)
    - **Demais jogos**: abrem no site original (WebSight via Google Apps Script)
