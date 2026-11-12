@@ -1,140 +1,53 @@
-# Escape House
+# ✦ NEBULA — Central de Jogos
 
-Jogo de terror e furtividade em primeira pessoa no navegador, inspirado em
-_Granny_. Você acorda trancado numa casa. Explore, recolha itens, resolva os
-puzzles e **saia** antes que ela encontre você — quantas vezes forem
-necessárias, até o limite de tentativas. Sem armas: só furtividade e raciocínio.
+A recriação, em **GitHub Pages**, dos 5 links de jogos (WebSight / LinkDuper) — com uma interface **minimalista, limpa e leve**: zero frameworks, zero build, só HTML + CSS + JS puro.
 
-- **Jogar:** <https://sitesforschoolfr.github.io/Granny/>
-- **Stack:** Three.js + Vite, JavaScript puro (ESM), sem framework.
-- **Status:** Parte 1/5 do design doc implementada. Partes 2–5 têm encaixes
-  reservados — ver [`docs/PARTES.md`](docs/PARTES.md).
+## O que tem no site
 
-```bash
-npm ci
-npm run dev        # http://localhost:5173
-```
-
-> O `npm run dev` já sobe em `0.0.0.0` e aceita qualquer host (necessário para
-> funcionar dentro de preview/sandbox).
-
----
-
-## Como jogar
-
-| tecla | ação |
-| --- | --- |
-| `W A S D` / setas | andar (3 m/s) |
-| mouse | olhar |
-| `Ctrl` / `C` | agachar (1,2 m/s, quase silencioso) |
-| `E` ou clique esquerdo | interagir: pegar, revistar, abrir/destrancar porta, esconder |
-| `Tab` / `Q` | listar o inventário |
-| `G` | largar o item da mão |
-| `F` / `Espaço` | usar item da mão |
-| `L` | lanterna |
-| `M` | onde estou |
-| `Esc` | pausar e soltar o mouse |
-| `` ` `` | overlay de debug (FPS, estado da IA) |
-
-**Não existe tecla de correr, de propósito.** A velocidade é fixa e moderada; a
-decisão é *risco*, não destreza: andar é mais rápido e barulhento, agachar é
-lento e seguro. Saltar também não existe livremente — só nos pontos marcados,
-e isso fica para a Parte 3.
-
-O começo: você acorda **deitado** num quarto pequeno e trancado. Levanta no
-primeiro comando de movimento. A saída é uma porta com cadeado — a chave está
-no criado-mudo do próprio quarto. É o primeiro micro-puzzle: antes de sair,
-você já interagiu com o mundo uma vez.
-
-**Regra de ouro:** andar chama atenção, agachar não. A Granny ouve passos e
-vê dentro de um cone — quebrar a linha de visão e se esconder funciona; ficar
-parado em campo aberto, não.
-
-**Para fugir:** a porta da frente está trancada por cadeado. Ache a **chave
-mestra** e o **bilhete com o código** (escondidos nos móveis, sorteados a cada
-run), depois abra a porta da frente.
-
-Parâmetros de URL: `?debug` · `?seed=123` (run reproduzível) ·
-`?quality=low|medium|high` · `?diff=easy|normal|nightmare`.
-
-**Sem WebGL?** O jogo não trava numa tela de erro: ele entra em **modo 2D**
-(planta baixa vista de cima, desenhada em canvas) e segue jogável — mesma
-casa, mesmas regras, outro ponto de vista.
-
----
-
-## Scripts
-
-| comando | o que faz |
-| --- | --- |
-| `npm run dev` | servidor de desenvolvimento (Vite) |
-| `npm run build` | build de produção para `dist/` |
-| `npm run preview` | serve `dist/` no caminho do Pages (`/Granny/`) |
-| `npm run smoke` | 27 testes de lógica headless (sem navegador) |
-| `npm run check` | `smoke` + `build` — o que o CI roda |
-| `npm run vendor:draco` | copia o decoder Draco para `public/vendor/draco` (só se algum modelo pedir `draco: true`) |
-
-Node ≥ 20.
-
----
+- **210 jogos** — todos os jogos dos 5 links (biblioteca principal, escolhidos a mão e biblioteca externa)
+- **Jogar em `about:blank`** — como no site original: cada jogo abre numa janela `about:blank`
+- **Download de todos os jogos** — quando o arquivo existe em repositório público, o site baixa direto no navegador (fetch → blob); caso contrário, abre o site original
+- **Os 5 links originais** — seção dedicada com status (4 ativos, 1 offline)
+- **Partículas** — fundo estrelado animado em canvas (baixa / média / alta)
+- **Configurações** — partículas, densidade, cursor e movimento reduzido (salvos em `localStorage`)
+- **Cursor personalizado** — um ponto no centro + um círculo pequeno em volta, que segue o mouse suavemente com delay e animação
+- **Busca** — encontre qualquer jogo instantaneamente
+- **Palavra mágica** — digite `por favor` em qualquer lugar e veja o que acontece 🤫
 
 ## Estrutura
 
 ```
-public/{models,textures,audio}/   assets — TODOS opcionais
-src/core/      config, eventos, estados, engine, assets, orquestrador (Game)
-src/world/     floor plan (ASCII), colisão, portas, casa, POIs
-src/player/    input (Pointer Lock), movimento, inventário
-src/ai/        grafo de navegação + IA da Granny
-src/systems/   ruído, puzzles, save, catálogo de itens
-src/audio/     Web Audio posicional + síntese procedural
-src/ui/        HUD, menus e todos os textos (pt-BR)
-tools/         smoke tests + vendor do Draco
+index.html   → página única
+style.css    → todo o visual (tema escuro, gradiente violeta/ciano)
+app.js       → dados dos jogos, partículas, cursor, configurações, downloads
 ```
 
-Detalhes em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md).
+## Como funciona o "Jogar"
 
----
+1. O site abre uma janela `about:blank`
+2. Em seguida, redireciona essa janela para o URL do jogo:
+   - **Arquivos diretos** (Doom, GTA, Mario, FNAF…): servidos pelo CDN do jsDelivr a partir dos repositórios públicos `Onex558/uranium-source-` e `Onex558/retro-games-`
+   - **Demais jogos**: abrem no site original (WebSight via Google Apps Script), que continua hospedando tudo
 
-## Assets
+## Os 5 links
 
-**Nenhum asset é obrigatório.** Sem `.glb`, sem `.png`, sem `.ogg`, o jogo roda
-igual: texturas são desenhadas em `<canvas>`, modelos viram primitivas e sons
-são sintetizados no `AudioContext`. Faltando arquivo, o loader avisa no console
-e segue.
+| # | `id`        | Status  |
+|---|-------------|---------|
+| 1 | `HVLL6YBBC5` | ✅ ativo |
+| 2 | `V9KM79NFHC` | ✅ ativo |
+| 3 | `J4JXSS9W3N` | ❌ offline (404) |
+| 4 | `GEMXRNAA6W` | ✅ ativo |
+| 5 | `HUZSGDFGGP` | ✅ ativo |
 
-Isso significa que o repositório clonado roda sem baixar binário nenhum — e que
-o Pages nunca quebra por um asset esquecido.
-
-Regras para quem for adicionar: textura ≤ 1024² em `.webp` (2048² só em
-parede/chão de close-up), áudio `.mp3`/`.ogg` (nunca `.wav`), modelo low-poly
-`.glb`. Ver [`docs/GITHUB_PAGES.md`](docs/GITHUB_PAGES.md).
-
----
+Todos apontam para o mesmo Apps Script:
+`https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=…`
 
 ## Deploy
 
-Push em `main` roda `.github/workflows/deploy.yml`:
-`npm ci → smoke → build → publica dist/`. Configurar uma vez em
-**Settings → Pages → Source: GitHub Actions**.
+GitHub Pages → branch `main` → raiz do repositório. Basta fazer push; o `index.html` está na raiz.
 
-O `base` do Vite é `/Granny/` no build e `/` em dev. No CI ele é lido de
-`GITHUB_REPOSITORY`, então um rename do repositório não quebra o deploy em
-silêncio — e o workflow falha se o `dist/` não estiver no caminho certo.
+## Créditos
 
----
+Jogos e capas hospedados por **P2P (WebSight/LinkDuper)** e pelos repositórios públicos do `Onex558` (jsDelivr CDN). NEBULA é apenas a "casa" bonita onde tudo vive.
 
-## Documentação
-
-| arquivo | para quem |
-| --- | --- |
-| [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) | entender o código e os contratos entre módulos |
-| [`docs/DECISOES.md`](docs/DECISOES.md) | por que cada escolha foi feita, o que foi descartado |
-| [`docs/PARTES.md`](docs/PARTES.md) | o que falta das Partes 2–5 e onde entra |
-| [`docs/GITHUB_PAGES.md`](docs/GITHUB_PAGES.md) | build, `base`, assets e checklist de deploy |
-
----
-
-## Licença
-
-MIT.
+Feito para a escola ✦ 2026
