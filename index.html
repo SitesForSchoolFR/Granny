@@ -64,6 +64,41 @@
       </div>
       <div class="grid" id="grid"></div>
       <p id="empty" class="empty" hidden>Nenhum jogo encontrado. Tente outra busca. ✨</p>
+      <nav class="pager" id="pager" aria-label="Páginas de jogos"></nav>
+    </section>
+
+    <!-- Downloads & arquivos -->
+    <section class="section" id="downloads">
+      <div class="section-head">
+        <h2>Downloads &amp; arquivos</h2>
+        <p class="section-sub">Tudo o que dá para baixar dos sites — direto dos repositórios públicos, com tamanho e botão.</p>
+      </div>
+
+      <div class="mantle-card">
+        <div class="mantle-head">
+          <h3>✦ Mantle Launcher <span class="pill pill-ok"><span class="dot"></span>anti-bloqueio</span></h3>
+          <p>
+            Do <em>getmantle.pages.dev</em> — baixe o arquivo do site e
+            <strong>arraste para uma aba do Chrome</strong> (ou dê duplo clique na versão HTML).
+            Os relays abaixo abrem o Mantle direto no navegador.
+          </p>
+        </div>
+        <div class="mantle-btns">
+          <button id="mantle-site" class="btn btn-primary" data-cursor>Site de download</button>
+          <button class="btn btn-ghost" data-relay="https://mantle-menu.pages.dev/" data-cursor>Relay 1</button>
+          <button class="btn btn-ghost" data-relay="https://mantle-menu.mantleunblocked.workers.dev/" data-cursor>Relay 2</button>
+          <button class="btn btn-ghost" data-relay="https://sites.google.com/view/mantle-menu/" data-cursor>Relay 3</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="dl-table">
+          <thead>
+            <tr><th>Arquivo</th><th>Origem</th><th>Tamanho</th><th class="ta-r">Ações</th></tr>
+          </thead>
+          <tbody id="dl-body"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- Os 5 links -->
@@ -130,6 +165,20 @@
       </div>
 
       <button id="set-reset" class="btn btn-ghost btn-sm" data-cursor>Redefinir padrões</button>
+    </div>
+  </div>
+
+  <!-- Espelhos (mirrors) -->
+  <div id="mirrors" class="settings" role="dialog" aria-label="Espelhos do jogo" aria-hidden="true">
+    <div class="settings-card">
+      <div class="settings-head">
+        <h3 id="mirrors-title">Espelhos</h3>
+        <button id="mirrors-close" class="icon-btn" aria-label="Fechar espelhos" data-cursor>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="mirrors-hint">Se um não abrir, tente o próximo — todos abrem o mesmo jogo (em about:blank).</p>
+      <div id="mirrors-list" class="mirrors-list"></div>
     </div>
   </div>
 

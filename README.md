@@ -2,32 +2,44 @@
 
 A recriação, em **GitHub Pages**, dos 5 links de jogos (WebSight / LinkDuper) — com uma interface **minimalista, limpa e leve**: zero frameworks, zero build, só HTML + CSS + JS puro.
 
+**Site:** `https://sitesforschoolfr.github.io/Nebula/`
+
 ## O que tem no site
 
-- **206 jogos** — todos os jogos dos 5 links (biblioteca principal, escolhidos a mão e biblioteca externa)
+- **217 jogos** — todos os jogos dos 5 links, verificados um a um:
+  - biblioteca principal (Doom, GTA, Mario, FNAF, Half-Life, Moto X3M, 15 mods de Friday Night Funkin…)
+  - **GN-Math** — 8 jogos da v1 (Calculus, Geometry, Equations, Fractions) + **GN-Math 2.0**
+  - **DuckMath**
+  - escolhidos a mão e biblioteca externa (Axiom, Noah's Hub…)
+- **Paginação** — 24 jogos por página (fileiras e colunas); nada é carregado de uma vez
 - **Jogar em `about:blank`** — como no site original: cada jogo abre numa janela `about:blank`
-- **Download de todos os jogos** — quando o arquivo existe em repositório público, o site baixa direto no navegador (fetch → blob); caso contrário, abre o site original
+- **Espelhos (mirrors)** — botão 🔗 em cada card: vários CDNs/hosts do mesmo jogo (jsDelivr, githack, esm.sh, p5js, npm…) para quando a escola bloqueia um
+- **Tabela de downloads** — todos os arquivos reais dos repositórios (jogos `.html`, zips, ROMs, parts), com tamanho e botão de download direto
+- **Mantle Launcher** (getmantle.pages.dev) — card com o site de download + 3 relays que abrem o Mantle no navegador
 - **Os 5 links originais** — seção dedicada com status (4 ativos, 1 offline)
 - **Partículas** — fundo estrelado animado em canvas (baixa / média / alta)
 - **Configurações** — partículas, densidade, cursor e movimento reduzido (salvos em `localStorage`)
-- **Cursor personalizado** — um ponto no centro + um círculo pequeno em volta, que segue o mouse suavemente com delay e animação
+- **Cursor personalizado** — ponto no centro + círculo pequeno em volta, que segue o mouse suavemente com delay e animação
 - **Busca** — encontre qualquer jogo instantaneamente
 - **Palavra mágica** — digite `por favor` em qualquer lugar e veja o que acontece 🤫
 
 ## Estrutura
 
 ```
-index.html   → página única
+index.html   → página única (hero, jogos paginados, downloads, links)
 style.css    → todo o visual (tema escuro, gradiente violeta/ciano)
-app.js       → dados dos jogos, partículas, cursor, configurações, downloads
+app.js       → dados dos jogos, paginação, partículas, cursor, configurações, espelhos, downloads
 ```
 
 ## Como funciona o "Jogar"
 
 1. O site abre uma janela `about:blank`
 2. Em seguida, redireciona essa janela para o URL do jogo:
-   - **Arquivos diretos** (Doom, GTA, Mario, FNAF…): servidos pelo CDN do jsDelivr a partir dos repositórios públicos `Onex558/uranium-source-` e `Onex558/retro-games-`
-   - **Demais jogos**: abrem no site original (WebSight via Google Apps Script), que continua hospedando tudo
+   - **Arquivos diretos** (Doom, GTA, Mario…): servidos pelo jsDelivr a partir dos repositórios públicos `Onex558/uranium-source-` e `Onex558/retro-games-`
+   - **GN-Math v1**: `raw.esm.sh` (repo `Why2ITry/gn-math-links-2-1`)
+   - **GN-Math 2.0 / DuckMath**: npm/esm.sh/p5js (com espelhos)
+   - **Demais jogos**: abrem no site original (WebSight via Google Apps Script)
+3. Alguns jogos mostram uma tela preta com um botão **“Load”** — é só clicar para começar (o site avisa isso)
 
 ## Os 5 links
 
@@ -44,10 +56,10 @@ Todos apontam para o mesmo Apps Script:
 
 ## Deploy
 
-GitHub Pages → branch `main` → raiz do repositório. Basta fazer push; o `index.html` está na raiz.
+Workflow `.github/workflows/deploy.yml` (template oficial do GitHub Pages) — publica a cada push na `main`.
 
 ## Créditos
 
-Jogos e capas hospedados por **P2P (WebSight/LinkDuper)** e pelos repositórios públicos do `Onex558` (jsDelivr CDN). NEBULA é apenas a "casa" bonita onde tudo vive.
+Jogos e capas hospedados por **P2P (WebSight/LinkDuper)**, pelos repositórios públicos do `Onex558`, pelo `classroomduck` (npm, DuckMath), `Why2ITry/gn-math-links-2-1` (GN-Math) e `getmantle.pages.dev` (Mantle Launcher). NEBULA é apenas a "casa" bonita onde tudo vive.
 
 Feito para a escola ✦ 2026

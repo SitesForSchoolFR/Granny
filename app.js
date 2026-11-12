@@ -4,11 +4,13 @@
    ============================================================ */
 'use strict';
 
-/* ---------------- Dados ---------------- */
+/* ---------------- Constantes ---------------- */
 
 const JSD = 'https://cdn.jsdelivr.net/gh/Onex558/';
 const RAW_U = 'https://raw.githubusercontent.com/Onex558/uranium-source-/main/';
 const RAW_R = 'https://raw.githubusercontent.com/Onex558/retro-games-/main/';
+const GITHACK_U = 'https://raw.githack.com/Onex558/uranium-source-/main/';
+const GITHACK_R = 'https://raw.githack.com/Onex558/retro-games-/main/';
 const W_BASE = 'https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=';
 const LINKS = [
   { id: 'HVLL6YBBC5', ok: true },
@@ -19,10 +21,124 @@ const LINKS = [
 ];
 const W0 = W_BASE + LINKS[0].id;
 const I = 'uranium-source-@main/images/';
+const REF = 'uranium-source-@refs/heads/main/images/';
 
-/* [nome, capa (relativa ao CDN jsDelivr) ou null, jogável, download, tag]
-   jogável/download: 'u:arquivo' (uranium-source-@main) | 'r:arquivo' (retro-games-@main)
-   'w' = no site original (WebSight) | '' = sem arquivo direto */
+const GN1 = 'https://raw.esm.sh/gh/Why2ITry/gn-math-links-2-1@38eb5c5c9a62b0be2391fcd8f459ecbd47d855b1/';
+const GN2 = 'https://raw.esm.sh/gh/Sloth648/caverned-spooky-wraith@main/a2.svg';
+const DUCK = 'https://cdn.jsdelivr.net/npm/classroomduck/index.svg';
+
+/* ---------------- Utilidades ---------------- */
+
+const $ = (s, r = document) => r.querySelector(s);
+const enc = p => p.split('/').map(encodeURIComponent).join('/');
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/* CAPA: mantém "repo@ref" literal (o @ não pode ser codificado), codifica só o arquivo */
+function coverURL(c) {
+  const i = c.lastIndexOf('@');
+  return JSD + c.slice(0, i + 1) + enc(c.slice(i + 1));
+}
+function jsdURL(ref) {
+  if (ref.startsWith('http')) return ref;
+  const k = ref[0], f = enc(ref.slice(2));
+  return (k === 'u' ? JSD + 'uranium-source-@main/' : JSD + 'retro-games-@main/') + f;
+}
+function rawURL(ref) {
+  if (ref.startsWith('http')) return ref;
+  const k = ref[0], f = enc(ref.slice(2));
+  return (k === 'u' ? RAW_U : RAW_R) + f;
+}
+const isWebGame = g => !g[2] || g[2] === 'w';
+const isDirect = g => g[2] && g[2] !== 'w';
+
+let toastTimer = null;
+function toast(msg, ms = 3800) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* Abrir em about:blank (comportamento original) */
+function openInBlank(url) {
+  const w = window.open('about:blank', '_blank');
+  if (!w) { toast('Pop-up bloqueado! Permita pop-ups para este site e tente de novo. 🙏'); return; }
+  try {
+    w.opener = null;
+    w.location.replace(url);
+  } catch (e) {
+    try { w.close(); } catch (_) { /* ok */ }
+    window.open(url, '_blank', 'noopener');
+  }
+}
+
+let webHinted = false;
+function webHint() {
+  if (webHinted) return;
+  webHinted = true;
+  toast('Esse jogo mora no site original — abri lá pra você! (este aviso aparece só uma vez) ✨', 4600);
+}
+
+let loadHinted = false;
+function loadHint() {
+  if (loadHinted) return;
+  loadHinted = true;
+  toast('🎮 Dica: se aparecer uma tela preta com o botão “Load”, clique nele para iniciar o jogo!', 5200);
+}
+
+/* Download real (fetch → blob) */
+async function blobDownload(url, fname) {
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) throw new Error('http ' + res.status);
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname || 'arquivo';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('⬇ Baixando “' + (fname || 'arquivo') + '”…');
+  } catch (e) {
+    window.open(url, '_blank', 'noopener');
+    toast('Abri em outra aba — use “Salvar como…” para guardar. 💾');
+  }
+}
+
+function downloadGame(name, ref) {
+  if (!ref || ref === 'w') { webHint(); openInBlank(W0); return; }
+  const fname = ref.startsWith('http') ? ref.split('/').pop().split('?')[0] : ref.slice(2).split('/').pop();
+  blobDownload(rawURL(ref), fname);
+}
+
+/* ---------------- Espelhos (mirrors) ---------------- */
+
+function mirrorsFor(g) {
+  if (g[5] && g[5].length) return g[5];
+  const p = g[2];
+  if (!p || p === 'w') {
+    return LINKS.map((l, i) => ['Link ' + (i + 1) + ' — WebSight' + (l.ok ? '' : ' (offline)'), W_BASE + l.id]);
+  }
+  if (p.startsWith('http')) return [];
+  const k = p[0], f = enc(p.slice(2));
+  if (k === 'u') return [
+    ['cdn.jsdelivr.net', JSD + 'uranium-source-@main/' + f],
+    ['raw.githack.com', GITHACK_U + f],
+    ['raw.githubusercontent.com (baixar)', RAW_U + f],
+  ];
+  return [
+    ['cdn.jsdelivr.net', JSD + 'retro-games-@main/' + f],
+    ['raw.githack.com', GITHACK_R + f],
+    ['raw.githubusercontent.com (baixar)', RAW_R + f],
+  ];
+}
+
+/* ---------------- Dados: jogos ----------------
+   [nome, capa ou null, jogável, download, tag, espelhos?]
+   jogável/download: 'u:arquivo' | 'r:arquivo' | 'w' (site original) | 'https://…' */
+
 const GAMES = [
   ['Doom', I + '1200.webp', 'u:doom.html', 'u:doom.html'],
   ['Doom 2', I + 'ss_05f81f237a6370c3c797af951b42291dc747d199.1920x1080.jpg', 'u:doom2.html', 'u:doom2.html'],
@@ -59,10 +175,10 @@ const GAMES = [
   ['Mario Party Advance', I + 'MariopartyGBA.jpg', 'w', 'w'],
   ['Subway Surfers Berlin', I + 'subway-surfers-berlin.png', 'w', 'w'],
   ['Baseball Bros', I + 'baseball_bros.webp', 'w', 'w'],
-  ["Five Nights at Shrek's", I + '770ff34d406e6ccd6ee470d9d9b3d55f.jpg', 'w', 'w'],
+  ["Five Nights at Shrek's", I + '770ff34d046e6ccd6ee470d9d7b3d55f.jpg', 'w', 'w'],
   ['FIFA World Cup 2026 SNES', I + 'image-49.png', 'w', 'w'],
   ['Cookie Clicker', I + '432bf350e866b2544f9a5cd80de83e0c24f4efddfd7811016c4aa33e48c5df7c.avif', 'w', 'w'],
-  ['Spaceflight Simulator', I + '09dc947ac1fdd31481539b5768a86513.png', 'w', 'w'],
+  ['Spaceflight Simulator', I + '09dc947ac1fdd31481539b5766a86513.png', 'w', 'w'],
   ['1v1.LOL', I + 'channels4_profile.jpg', 'w', 'w'],
   ['2048', I + 'download.png', 'w', 'w'],
   ['2048 Cupcakes', I + 'download.jpg', 'w', 'w'],
@@ -76,52 +192,53 @@ const GAMES = [
   ['8 Ball Classic', I + '8BallBilliardsClassicTeaser.jpg', 'w', 'w'],
   ['8 Ball Pool', I + '8-Ball-Pool.png.webp', 'w', 'w'],
   ['ADOFAI', I + 'adofai.jpg', 'w', 'w'],
-  ['A Dark Room', I + 'Adventure-Capitalist.webp', 'w', 'w'],
-  ['Adventure Capitalist', I + 'altered-beast-3.jpg', 'w', 'w'],
-  ['Altered Beast', I + 'geometry-dash-wave-game.png', 'w', 'w'],
-  ['Geometry Dash Wave', I + 'Awesome-Pirates.jpg', 'w', 'w'],
-  ['Awesome Pirates', I + 'sm64_b3313_fanart_by_modraw08_djcr62e-fullview.jpg', 'w', 'w'],
-  ['B3313', I + 'bfdi_branches__demo__poster__by_bobbyinteraction5_dhr7288-fullview.jpg', 'w', 'w'],
-  ['BFDI Branches', 'uranium-source-@refs/heads/main/images/bmx 2.avif', 'w', 'w'],
-  ['BMX 2', I + 'OIP.jpg', 'w', 'w'],
-  ['Bloons TD 1', I + 'bank-robbery.jpg', 'w', 'w'],
-  ['Bank Robbery', I + 'Bonanza-Bros-destc-1024x576.jpg', 'w', 'w'],
-  ['Bonanza Bros', I + 'bounty-of-one-button-1696613856511.jpg', 'w', 'w'],
-  ['Bounty Of One', I + 'brawl-stars-game-ft.webp', 'w', 'w'],
-  ['Brawl Stars', I + 'celltosingularity-1673648155490.jpg', 'w', 'w'],
-  ['Cell To Singularity', 'uranium-source-@refs/heads/main/images/chicken-cs_16x9-cover.avif', 'w', 'w'],
-  ['Chicken CS', I + 'CircloO_2.png', 'w', 'w'],
-  ['CircloO 2', I + 'crystal-castles_5.png', 'w', 'w'],
-  ['Crystal Castles', I + 'dashmetry.png', 'w', 'w'],
-  ['Dashmetry', I + '1200px-Dragon_Ball_Z-_The_Legacy_of_Goku_(us)_cover.jpg', 'w', 'w'],
-  ['Dragon Ball Z Legacy of Goku', I + 'Dragon-Quest-IX-Box-art-1280px-50p.webp', 'w', 'w'],
-  ['Dragon Quest IX', I + 'fifa 7.jpg', 'w', 'w'],
-  ['FIFA 07', 'uranium-source-@refs/heads/main/images/FIFA-10-Cover.avif', 'w', 'w'],
-  ['FIFA 10', I + 'Fifa11_Game_Cover.jpg', 'w', 'w'],
-  ['FIFA 11', I + 'fnaf1_cover.webp', 'w', 'w'],
-  ['FNAF', I + 'five-nights-at-freddys-2-game.jpg', 'w', 'w'],
-  ['FNAF 2', I + 'fnaf3_cover.webp', 'w', 'w'],
-  ['FNAF 3', 'uranium-source-@refs/heads/main/images/fnaf-4-poster.avif', 'w', 'w'],
-  ['FNAF 4', I + '56869-dan-kitchen-s-tomcat-the-f-14-fighter-simulator-atari-2600-front-cover.webp', 'w', 'w'],
-  ['Tomcat F-14 Flight Sim', I + 'microsoft-flight-simulator-4-03-big.webp', 'w', 'w'],
-  ['MS Flight Sim Old', I + 'images (6).jpeg', 'u:microsoftflightsimold.html', 'u:microsoftflightsimold.html'],
-  ['Untime', I + 'images (5).jpeg', 'w', 'w'],
-  ['Untitled Goose Game', I + 'images (8).jpeg', 'w', 'w'],
-  ['Upgrade Complete', I + 'images (7).jpeg', 'w', 'w'],
-  ['Upgrade Complete 2', I + 'images (9).jpeg', 'w', 'w'],
-  ['Upslash', I + 'download (2).jpeg', 'w', 'w'],
-  ['Urban Champion', I + 'images (72).jpeg', 'w', 'w'],
-  ['Cluster Rush', I + 'images (10).jpeg', 'w', 'w'],
-  ['Vampire Survivors', I + 'header.jpg', 'w', 'w'],
-  ['Vanguard', I + 'images (11).jpeg', 'w', 'w'],
-  ['Vapor Trails', I + 'images (12).jpeg', 'w', 'w'],
-  ['Minecraft Tower Defense', I + 'images (1).webp', 'w', 'w'],
-  ['Hell Talker', I + 'images.png', 'w', 'w'],
-  ['10 Minutes Til Dawn', I + 'images (16).jpeg', 'w', 'w'],
-  ['Crossy Road', I + 'images (1).png', 'w', 'w'],
-  ['Slope', I + 'images (19).jpeg', 'w', 'w'],
-  ['Run', I + 'images (20).jpeg', 'w', 'w'],
-  ['Run 2', I + 'images (21).jpeg', 'w', 'w'],
+  ['A Dark Room', I + 'adofai.jpg', 'w', 'w'],
+  ['Adventure Capitalist', I + 'Adventure-Capitalist.webp', 'w', 'w'],
+  ['Altered Beast', I + 'altered-beast-3.jpg', 'w', 'w'],
+  ['Geometry Dash Wave', I + 'geometry-dash-wave-game.png', 'w', 'w'],
+  ['Awesome Pirates', I + 'Awesome-Pirates.jpg', 'w', 'w'],
+  ['B3313', I + 'sm64_b3313_fanart_by_modraw08_djcr62e-fullview.jpg', 'w', 'w'],
+  ['BFDI Branches', I + 'bfdi_branches__demo__poster__by_bobbyinteraction5_dhr7288-fullview.jpg', 'w', 'w'],
+  ['BMX 2', REF + 'bmx 2.avif', 'w', 'w'],
+  ['Bloons TD 1', I + 'OIP.jpg', 'w', 'w'],
+  ['Bank Robbery', I + 'bank-robbery.jpg', 'w', 'w'],
+  ['Bonanza Bros', I + 'Bonanza-Bros-destc-1024x576.jpg', 'w', 'w'],
+  ['Bounty Of One', I + 'bounty-of-one-button-1696613856511.jpg', 'w', 'w'],
+  ['Brawl Stars', I + 'brawl-stars-game-ft.webp', 'w', 'w'],
+  ['Cell To Singularity', I + 'celltosingularity-1673648155490.jpg', 'w', 'w'],
+  ['Chicken CS', REF + 'chicken-cs_16x9-cover.avif', 'w', 'w'],
+  ['CircloO 2', I + 'CircloO_2.png', 'w', 'w'],
+  ['Crystal Castles', I + 'crystal-castles_5.png', 'w', 'w'],
+  ['Dashmetry', I + 'dashmetry.png', 'w', 'w'],
+  ['Dragon Ball Z Legacy of Goku', I + '1200px-Dragon_Ball_Z-_The_Legacy_of_Goku_(us)_cover.jpg', 'w', 'w'],
+  ['Dragon Quest IX', I + 'Dragon-Quest-IX-Box-art-1280px-50p.webp', 'w', 'w'],
+  ['FIFA 07', I + 'fifa 7.jpg', 'w', 'w'],
+  ['FIFA 10', REF + 'FIFA-10-Cover.avif', 'w', 'w'],
+  ['FIFA 11', I + 'Fifa11_Game_Cover.jpg', 'w', 'w'],
+  ['FNAF', I + 'fnaf1_cover.webp', 'w', 'w'],
+  ['FNAF 2', I + 'five-nights-at-freddys-2-game.jpg', 'w', 'w'],
+  ['FNAF 3', I + 'fnaf3_cover.webp', 'w', 'w'],
+  ['FNAF 4', REF + 'fnaf-4-poster.avif', 'w', 'w'],
+  ['Tomcat F-14 Flight Sim', I + '56869-dan-kitchen-s-tomcat-the-f-14-fighter-simulator-atari-2600-front-cover.webp', 'w', 'w'],
+  ['MS Flight Sim Old', I + 'microsoft-flight-simulator-4-03-big.webp', 'u:microsoftflightsimold.html', 'u:microsoftflightsimold.html'],
+  ['Untime', I + 'images (6).jpeg', 'w', 'w'],
+  ['Untitled Goose Game', I + 'images (5).jpeg', 'w', 'w'],
+  ['Upgrade Complete', I + 'images (8).jpeg', 'w', 'w'],
+  ['Upgrade Complete 2', I + 'images (7).jpeg', 'w', 'w'],
+  ['Upslash', I + 'images (9).jpeg', 'w', 'w'],
+  ['Urban Champion', I + 'download (2).jpeg', 'w', 'w'],
+  ['Cluster Rush', I + 'images (72).jpeg', 'w', 'w'],
+  ['Vampire Survivors', I + 'images (10).jpeg', 'w', 'w'],
+  ['Vanguard', I + 'header.jpg', 'w', 'w'],
+  ['Vapor Trails', I + 'images (11).jpeg', 'w', 'w'],
+  ['Minecraft Tower Defense', I + 'images (12).jpeg', 'w', 'w'],
+  ['Hell Talker', I + 'images (1).webp', 'w', 'w'],
+  ['10 Minutes Til Dawn', I + 'images.png', 'w', 'w'],
+  ['Crossy Road', I + 'images (16).jpeg', 'w', 'w'],
+  ['Slope', I + 'images (1).png', 'w', 'w'],
+  ['Run', I + 'images (19).jpeg', 'w', 'w'],
+  ['Run 2', I + 'images (20).jpeg', 'w', 'w'],
+  ['Run 3', I + 'images (21).jpeg', 'w', 'w'],
   ['Retro Bowl', I + 'unnamed.png', 'w', 'w'],
   ["Baldi's Basics", I + 'baldisbasics_plus.webp', 'w', 'w'],
   ['Chess', I + 'images (22).jpeg', 'w', 'w'],
@@ -156,6 +273,55 @@ const GAMES = [
   ['Fruit Ninja', I + 'images (58).jpeg', 'w', 'w'],
   ['Flappy Bird', I + 'images (59).jpeg', 'w', 'w'],
 
+  /* Matemática — GN-Math v1 (8 jogos, hospedados no esm.sh) */
+  ['GN-Math: Study Calculus 21', null, GN1 + 'study-calculus-21-di3sir.html', GN1 + 'study-calculus-21-di3sir.html', 'GN-Math'],
+  ['GN-Math: Practice Geometry 2', null, GN1 + 'practice-geometry-2-53t910.html', GN1 + 'practice-geometry-2-53t910.html', 'GN-Math'],
+  ['GN-Math: Practice Equation 6', null, GN1 + 'practice-equation-6-3z7tqa.html', GN1 + 'practice-equation-6-3z7tqa.html', 'GN-Math'],
+  ['GN-Math: Study Fraction 17', null, GN1 + 'study-fraction-17-83lago.html', GN1 + 'study-fraction-17-83lago.html', 'GN-Math'],
+  ['GN-Math: Practice Equation 18', null, GN1 + 'practice-equation-18-bsmud0.html', GN1 + 'practice-equation-18-bsmud0.html', 'GN-Math'],
+  ['GN-Math: Practice Geometry 14', null, GN1 + 'practice-geometry-14-75irnr.html', GN1 + 'practice-geometry-14-75irnr.html', 'GN-Math'],
+  ['GN-Math: Practice Geometry 8', null, GN1 + 'practice-geometry-8-f3tzjo.html', GN1 + 'practice-geometry-8-f3tzjo.html', 'GN-Math'],
+  ['GN-Math: Study Fraction 5', null, GN1 + 'study-fraction-5-9b7ff5.html', GN1 + 'study-fraction-5-9b7ff5.html', 'GN-Math'],
+
+  /* GN-Math 2.0 (arquivo único, espalhado em vários CDNs) */
+  ['GN-Math 2.0', null, GN2, GN2, 'GN-Math', [
+    ['cdn.jsdelivr.net', 'https://cdn.jsdelivr.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['fastly.jsdelivr.net', 'https://fastly.jsdelivr.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['originfastly.jsdelivr.net', 'https://originfastly.jsdelivr.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['testingcf.jsdelivr.net', 'https://testingcf.jsdelivr.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['jsdelivr.b-cdn.net', 'https://jsdelivr.b-cdn.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['jsd.onmicrosoft.cn', 'https://jsd.onmicrosoft.cn/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['cdn.staticdelivr.com', 'https://cdn.staticdelivr.com/gh/Sloth648/caverned-spooky-wraith/main/a2.svg'],
+    ['cdn.jsdmirror.com', 'https://cdn.jsdmirror.com/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['cdn.statically.io', 'https://cdn.statically.io/gh/Sloth648/caverned-spooky-wraith/main/a2.svg'],
+    ['esm.sh', 'https://esm.sh/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['raw.esm.sh', 'https://raw.esm.sh/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['quantil.jsdelivr.net', 'https://quantil.jsdelivr.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['gcore.jsdelivr.net', 'https://gcore.jsdelivr.net/gh/Sloth648/caverned-spooky-wraith@main/a2.svg'],
+    ['raw.githack.com', 'https://raw.githack.com/Sloth648/caverned-spooky-wraith/main/a2.svg'],
+    ['rawcdn.githack.com', 'https://rawcdn.githack.com/Sloth648/caverned-spooky-wraith/main/a2.svg'],
+    ['raw.githubusercontent.com', 'https://raw.githubusercontent.com/Sloth648/caverned-spooky-wraith/main/a2.svg'],
+    ['githubraw.com', 'https://githubraw.com/Sloth648/caverned-spooky-wraith/main/a2.svg'],
+    ['education.sesaech.gob.mx', 'https://education.sesaech.gob.mx'],
+    ['education.pound4poundmma.ca', 'https://education.pound4poundmma.ca'],
+  ]],
+
+  /* DuckMath (build único do classroomduck, em vários hosts) */
+  ['DuckMath', null, DUCK, DUCK, 'DuckMath', [
+    ['cdn.jsdelivr.net (npm)', 'https://cdn.jsdelivr.net/npm/classroomduck/index.svg'],
+    ['fastly.jsdelivr.net (npm)', 'https://fastly.jsdelivr.net/npm/classroomduck/index.svg'],
+    ['unpkg.com (npm)', 'https://unpkg.com/classroomduck/index.svg'],
+    ['cdn.jsdelivr.net (github)', 'https://cdn.jsdelivr.net/gh/freezenovasrl/cdn/duckmath.svg'],
+    ['assets.editor.p5js.org', 'https://assets.editor.p5js.org/69f34707e1b8c4295655b517/6e528b37-2c24-457c-b1de-8b0964eacd2f.svg'],
+    ['assets.editor.p5js.org (2)', 'https://assets.editor.p5js.org/69f34707e1b8c4295655b517/e3a9881e-d76a-41f5-94bf-6df6bcea5ec2.svg'],
+    ['ck8.beamschoolsofeducation.cf', 'https://ck8.beamschoolsofeducation.cf'],
+    ['drql.beamschoolsofeducation.cfd', 'https://drql.beamschoolsofeducation.cfd'],
+    ['j4c.beamschoolsofeducation.cfd', 'https://j4c.beamschoolsofeducation.cfd'],
+    ['bull.stockfun.net', 'https://bull.stockfun.net'],
+    ['dsf.stockfun.net', 'https://dsf.stockfun.net'],
+    ['njbkr.stockfun.net', 'https://njbkr.stockfun.net'],
+  ]],
+
   /* Escolhidos a mão no site original (sem capa) */
   ['Deathrun 3D', null, 'w', 'w', 'escolhido'],
   ['TikTok Unblockable', null, 'w', 'w', 'escolhido'],
@@ -168,7 +334,7 @@ const GAMES = [
   ['Gdweb', null, 'w', 'w', 'escolhido'],
   ['Sandboxels', null, 'w', 'w', 'escolhido'],
 
-  /* Biblioteca externa (Axiom, Noah\u2019s Hub, etc.) */
+  /* Biblioteca externa (Axiom, Noah's Hub, etc.) */
   ['3d Bolt Master', null, 'w', 'w', 'externo'],
   ['3d Bowling', null, 'w', 'w', 'externo'],
   ['99 Balls 3d', null, 'w', 'w', 'externo'],
@@ -236,79 +402,62 @@ const GAMES = [
   ['Stick War Legacy', null, 'w', 'w', 'externo'],
 ];
 
-const TAG_LABEL = { 'escolhido': 'escolhido', 'externo': 'biblioteca' };
+const TAG_LABEL = { 'escolhido': 'escolhido', 'externo': 'biblioteca', 'GN-Math': 'GN-Math', 'DuckMath': 'DuckMath' };
 
-/* ---------------- Utilidades ---------------- */
+/* ---------------- Dados: downloads (arquivos reais) ----------------
+   [caminho no repo, 'u'|'r', tamanho em bytes] */
 
-const $ = (s, r = document) => r.querySelector(s);
-const enc = p => p.split('/').map(encodeURIComponent).join('/');
-const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const FILES = [
+  /* uranium-source- (jogos jogáveis) */
+  ['doom.html', 'u', 4947], ['doom2.html', 'u', 2674], ['doom3.html', 'u', 1070], ['doom64.html', 'u', 2929],
+  ['gta.html', 'u', 2888], ['gta2.html', 'u', 2892], ['gtaa.html', 'u', 2703], ['gtachina.html', 'u', 3963],
+  ['gtavcs.html', 'u', 2498], ['gt2.html', 'u', 4133], ['journey.html', 'u', 2877], ['lsw.html', 'u', 2879],
+  ['lsw2.html', 'u', 2857], ['smw.html', 'u', 2914], ['smb.html', 'u', 2868], ['smb2.html', 'u', 2927],
+  ['smb3.html', 'u', 2935], ['mspacman.html', 'u', 2878], ['peggle.html', 'u', 1005], ['pvz.html', 'u', 2835],
+  ['scribblenauts.html', 'u', 2944], ['opposing.html', 'u', 42936], ['puckman.html', 'u', 2873],
+  ['shotgunmario64.html', 'u', 3414], ['happywheels.html', 'u', 545], ['mcpe.html', 'u', 2950],
+  ['mcsm.html', 'u', 8047], ['gd7.html', 'u', 2888], ['ptr.html', 'u', 3008], ['ratatouille.html', 'u', 2716],
+  ['microsoftflightsimold.html', 'u', 1163], ['patricks/index.html', 'u', 1585],
+  ['Axiom-Browser (11).html', 'u', 3793725], ['netfolixa.html', 'u', 30504], ['Music.html', 'u', 10326],
+  ['spotdiytest.html', 'u', 3499], ['uranium cloaking.html', 'u', 58273],
+  ['uraniumforsvg.html', 'u', 67154], ['uraniumwithgn-mathversi.on.html', 'u', 61920],
+  /* uranium-source- (arquivos grandes) */
+  ['Toy Story 3.zip.part1', 'u', 20796197], ['Toy Story 3.zip.part2', 'u', 20796197],
+  ['patricks/Build/patricks.wasm', 'u', 23867978], ['patricks/Build/patricks.data', 'u', 10039127],
+  ['patricks/Build/patricks.framework.js', 'u', 389079], ['patricks/Build/patricks.loader.js', 'u', 13114],
+  ["Noah's tutoring hub.js", 'u', 112292], ['nth.js', 'u', 136279], ['uranium games', 'u', 1],
+  /* retro-games- (jogos jogáveis) */
+  ['atari2880 tomcat f-14.html', 'r', 2783], ['backrooms 64.html', 'r', 3518],
+  ['flushed away.html', 'r', 2739], ['flushed away test.html', 'r', 3568],
+  ['FlushedAway.html', 'r', 2897], ['Harrypottergba2.html', 'r', 2814],
+  ['harrypotterchamberofsecretsgba.html', 'r', 2817], ['ratatouiels GBA.html', 'r', 2611],
+  ['RatatouilleNDS.html', 'r', 3683], ['shotgunmario64.html', 'r', 3517],
+  /* retro-games- (roms e arquivos) */
+  ['Ratatouille (USA).zip', 'r', 21634398], ['ratatouille new test.zip', 'r', 21634880],
+  ['Bee Movie Game.zip.part1', 'r', 19922944], ['Bee Movie Game.zip.part2', 'r', 3258630],
+  ['Mario Kart DS Deluxe (v0.3).zip', 'r', 19733693],
+  ['Rattatollie -NDS - USA/Ratatouille (USA).nds.part1', 'r', 15728640],
+  ['Rattatollie -NDS - USA/Ratatouille (USA).nds.part2', 'r', 15728640],
+  ['Rattatollie -NDS - USA/Ratatouille (USA).nds.part3', 'r', 2097152],
+  ['Flushed Away (USA).zip', 'r', 17880317], ['Mario Odyssey 64.zip', 'r', 10441123],
+  ['The Backrooms 64 (v1.1).zip', 'r', 8027872], ['Ratatouille (USA).gba', 'r', 8388608],
+  ['lsd_-_dream_emulator_eng_patch_v1.zip', 'r', 6529760],
+  ['Incredibles The - Rise of the Underminer (USA).zip', 'r', 6242879],
+  ['Shotgun Mario 64 1.0.4.zip', 'r', 6061730],
+  ["Harry Potter and the Sorcerer's Stone.zip", 'r', 5496376],
+  ['Harry Potter and the Chamber of Secrets.zip', 'r', 4205241],
+  ['Simpsons, The_ Road Rage.zip', 'r', 2478262],
+  ['Tomcat - The F-14 Flight Simulator (1988) (Absolute) [!] (1).zip', 'r', 12059],
+];
 
-function playURL(g) {
-  const p = g[2];
-  if (!p || p === 'w') return W0;
-  if (p.startsWith('u:')) return JSD + 'uranium-source-@main/' + enc(p.slice(2));
-  if (p.startsWith('r:')) return JSD + 'retro-games-@main/' + enc(p.slice(2));
-  return W0;
-}
-function isWebGame(g) { return !g[2] || g[2] === 'w'; }
-function rawURL(ref) {
-  const k = ref[0], f = enc(ref.slice(2));
-  return (k === 'u' ? RAW_U : RAW_R) + f;
-}
-function coverURL(c) { return JSD + enc(c); }
-
-let toastTimer = null;
-function toast(msg, ms = 3600) {
-  const t = $('#toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), ms);
-}
-
-/* Abrir em about:blank (comportamento original) */
-function openInBlank(url) {
-  const w = window.open('about:blank', '_blank');
-  if (!w) { toast('Pop-up bloqueado! Permita pop-ups para este site e tente de novo. 🙏'); return; }
-  try {
-    w.opener = null;
-    w.location.replace(url);
-  } catch (e) {
-    try { w.close(); } catch (_) { /* ok */ }
-    window.open(url, '_blank', 'noopener');
-  }
-}
-
-let webHinted = false;
-function webHint() {
-  if (webHinted) return;
-  webHinted = true;
-  toast('Esse jogo mora no site original — abri lá pra você! (este aviso aparece só uma vez) ✨', 4600);
-}
-
-/* Download real (fetch → blob) quando houver arquivo direto */
-async function downloadGame(name, ref) {
-  if (!ref || ref === 'w') { webHint(); openInBlank(W0); return; }
-  const url = rawURL(ref);
-  const fname = ref.split(':').pop().split('/').pop() || 'jogo';
-  try {
-    const res = await fetch(url, { mode: 'cors' });
-    if (!res.ok) throw new Error('http ' + res.status);
-    const blob = await res.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = fname;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    toast('⬇ Baixando “' + name + '”…');
-  } catch (e) {
-    window.open(url, '_blank', 'noopener');
-    toast('Abri o arquivo em outra aba — use “Salvar página como…” para guardar. 💾');
-  }
-}
+const MANTLE = {
+  site: 'https://getmantle.pages.dev/',
+  relays: [
+    ['Relay 1', 'https://mantle-menu.pages.dev/'],
+    ['Relay 2', 'https://mantle-menu.mantleunblocked.workers.dev/'],
+    ['Relay 3', 'https://sites.google.com/view/mantle-menu/'],
+  ],
+};
 
 /* ---------------- Configurações ---------------- */
 
@@ -407,7 +556,6 @@ function tick() {
         ctx.fill();
       }
     }
-    /* confete */
     confetti = confetti.filter(c => c.life > 0 && c.y < cvs.height + 20);
     for (const c of confetti) {
       c.x += c.vx; c.y += c.vy; c.vy += c.g; c.rot += c.vr; c.life--;
@@ -463,6 +611,7 @@ const ring = $('#cur-ring');
 let mx = innerWidth / 2, my = innerHeight / 2;
 let rx = mx, ry = my, rs = 1, ts = 1;
 let cursorOn = false;
+let ringHover = false;
 
 function cursorLoop() {
   if (cursorOn) {
@@ -485,10 +634,9 @@ if (FINE) {
   addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; }, { passive: true });
   addEventListener('pointerdown', () => { ts = .8; }, { passive: true });
   addEventListener('pointerup', () => { ts = ringHover ? 1.45 : 1; }, { passive: true });
-  let ringHover = false;
   addEventListener('pointerover', e => {
-    const hit = e.target.closest ? e.target.closest('a, button, input, label, .card, .seg button') : null;
-    if (hit !== null && hit !== ringHover) {
+    const hit = e.target.closest ? e.target.closest('a, button, input, label, .card, .seg button, .mirror-row') : null;
+    if (hit !== null && !!hit !== ringHover) {
       ringHover = !!hit;
       ring.classList.toggle('cur-hover', ringHover);
       ts = ringHover ? 1.45 : 1;
@@ -499,13 +647,18 @@ if (FINE) {
   requestAnimationFrame(cursorLoop);
 }
 
-/* ---------------- Render: jogos ---------------- */
+/* ---------------- Render: jogos (com paginação) ---------------- */
 
 const grid = $('#grid');
+const pager = $('#pager');
 const emptyMsg = $('#empty');
+const gamesCount = $('#games-count');
+const PER_PAGE = 24;
+const state = { page: 1, q: '' };
 
 const ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>';
 const ICON_DL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v10m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_LINK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l2.83-2.83a5 5 0 1 0-7.07-7.07L11.5 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 10a5 5 0 0 0-7.07 0L4.1 12.83a5 5 0 1 0 7.07 7.07l1.32-1.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
 function makeCard(g) {
   const [name, cover, play, dl, tag] = g;
@@ -540,6 +693,19 @@ function makeCard(g) {
     coverBox.appendChild(t);
   }
 
+  const mirs = mirrorsFor(g);
+  if (mirs.length > 1) {
+    const bm = document.createElement('button');
+    bm.type = 'button';
+    bm.className = 'card-mir';
+    bm.dataset.cursor = '';
+    bm.innerHTML = ICON_LINK;
+    bm.setAttribute('aria-label', 'Espelhos de ' + name);
+    bm.title = 'Espelhos (se um não abrir, tente o outro)';
+    bm.addEventListener('click', () => openMirrors(name, mirs));
+    coverBox.appendChild(bm);
+  }
+
   const body = document.createElement('div');
   body.className = 'card-body';
 
@@ -557,8 +723,8 @@ function makeCard(g) {
   bPlay.innerHTML = ICON_PLAY + '<span>Jogar</span>';
   bPlay.setAttribute('aria-label', 'Jogar ' + name + ' (abre em about:blank)');
   bPlay.addEventListener('click', () => {
-    if (isWebGame(g)) webHint();
-    openInBlank(playURL(g));
+    if (isWebGame(g)) webHint(); else loadHint();
+    openInBlank(jsdURL(play));
   });
 
   const bDl = document.createElement('button');
@@ -593,14 +759,100 @@ function observeCards() {
   grid.querySelectorAll('.card').forEach(c => observer.observe(c));
 }
 
-function renderGames() {
+function filteredGames() {
+  const n = norm(state.q.trim());
+  return GAMES.filter(g => !n || norm(g[0]).includes(n));
+}
+
+function renderPager(pages) {
+  pager.innerHTML = '';
+  if (pages <= 1) return;
+  const mk = (label, page, opts = {}) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.className = 'pg-btn' + (opts.active ? ' active' : '') + (opts.ell ? ' ell' : '');
+    b.dataset.cursor = '';
+    b.setAttribute('aria-label', 'Página ' + page);
+    if (opts.ell) { b.disabled = true; b.removeAttribute('data-cursor'); }
+    else if (opts.disabled) b.disabled = true;
+    else b.addEventListener('click', () => { state.page = page; renderPage(); });
+    return b;
+  };
+  pager.appendChild(mk('‹', state.page - 1, { disabled: state.page === 1 }));
+  const win = new Set([1, 2, pages - 1, pages, state.page - 1, state.page, state.page + 1]);
+  let last = 0;
+  for (let p = 1; p <= pages; p++) {
+    if (!win.has(p)) continue;
+    if (p - last > 1) {
+      const e = document.createElement('span');
+      e.className = 'pg-ell';
+      e.textContent = '…';
+      pager.appendChild(e);
+    }
+    pager.appendChild(mk(String(p), p, { active: p === state.page }));
+    last = p;
+  }
+  pager.appendChild(mk('›', state.page + 1, { disabled: state.page === pages }));
+}
+
+function renderPage() {
+  const list = filteredGames();
+  const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+  if (state.page > pages) state.page = pages;
+  if (state.page < 1) state.page = 1;
+  const slice = list.slice((state.page - 1) * PER_PAGE, state.page * PER_PAGE);
+
   grid.innerHTML = '';
   const frag = document.createDocumentFragment();
-  for (const g of GAMES) frag.appendChild(makeCard(g));
+  for (const g of slice) frag.appendChild(makeCard(g));
   grid.appendChild(frag);
-  $('#stat-count').textContent = GAMES.length;
-  $('#games-count').textContent = GAMES.length + ' jogos — use a busca para encontrar o seu.';
+
+  emptyMsg.hidden = slice.length > 0;
+  gamesCount.textContent = state.q.trim()
+    ? list.length + ' jogo(s) encontrado(s) • página ' + state.page + ' de ' + pages
+    : GAMES.length + ' jogos • página ' + state.page + ' de ' + pages + ' — use a busca para encontrar o seu.';
+  renderPager(pages);
   observeCards();
+
+  const sec = document.getElementById('jogos');
+  const top = sec.getBoundingClientRect().top;
+  if (top < -40) sec.scrollIntoView({ behavior: S.reduce ? 'auto' : 'smooth' });
+}
+
+/* ---------------- Espelhos (modal) ---------------- */
+
+const mirrors = $('#mirrors');
+const mirrorsTitle = $('#mirrors-title');
+const mirrorsList = $('#mirrors-list');
+
+function openMirrors(name, list) {
+  mirrorsTitle.textContent = 'Espelhos — ' + name;
+  mirrorsList.innerHTML = '';
+  for (const [label, url] of list) {
+    const a = document.createElement('a');
+    a.className = 'mirror-row';
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.dataset.cursor = '';
+    const host = document.createElement('span');
+    host.className = 'mirror-host';
+    host.textContent = label;
+    const path = document.createElement('span');
+    path.className = 'mirror-url';
+    path.textContent = url;
+    a.append(host, path);
+    a.addEventListener('click', e => { e.preventDefault(); openInBlank(url); });
+    mirrorsList.appendChild(a);
+  }
+  mirrors.classList.add('open');
+  mirrors.setAttribute('aria-hidden', 'false');
+  $('#mirrors-close').focus();
+}
+function closeMirrors() {
+  mirrors.classList.remove('open');
+  mirrors.setAttribute('aria-hidden', 'true');
 }
 
 /* ---------------- Render: os 5 links ---------------- */
@@ -641,20 +893,76 @@ function renderLinks() {
   });
 }
 
+/* ---------------- Render: tabela de downloads ---------------- */
+
+function fmtBytes(n) {
+  if (n >= 1048576) return (n / 1048576).toFixed(1).replace(/\.0$/, '') + ' MB';
+  if (n >= 1024) return Math.round(n / 1024) + ' KB';
+  return n + ' B';
+}
+
+function renderFiles() {
+  const body = $('#dl-body');
+  for (const [path, repo, size] of FILES) {
+    const ext = path.includes('.') ? path.split('.').pop().toLowerCase() : '';
+    const raw = (repo === 'u' ? RAW_U : RAW_R) + enc(path);
+    const jsd = (repo === 'u' ? JSD + 'uranium-source-@main/' : JSD + 'retro-games-@main/') + enc(path);
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.className = 'df-name';
+    tdName.textContent = path;
+
+    const tdRepo = document.createElement('td');
+    tdRepo.className = 'df-repo';
+    tdRepo.textContent = repo === 'u' ? 'uranium-source-' : 'retro-games-';
+
+    const tdSize = document.createElement('td');
+    tdSize.className = 'df-size';
+    tdSize.textContent = fmtBytes(size);
+
+    const tdAct = document.createElement('td');
+    tdAct.className = 'df-act';
+
+    if (ext === 'html') {
+      const bp = document.createElement('button');
+      bp.type = 'button';
+      bp.className = 'btn btn-play btn-xs';
+      bp.dataset.cursor = '';
+      bp.innerHTML = ICON_PLAY + '<span>Jogar</span>';
+      bp.addEventListener('click', () => { loadHint(); openInBlank(jsd); });
+      tdAct.appendChild(bp);
+    }
+    const bd = document.createElement(ext === 'html' || ext === 'js' ? 'button' : 'a');
+    bd.className = 'btn btn-dl btn-xs';
+    bd.dataset.cursor = '';
+    bd.innerHTML = ICON_DL + '<span>Baixar</span>';
+    if (ext === 'html' || ext === 'js') {
+      bd.type = 'button';
+      bd.addEventListener('click', () => blobDownload(raw, path.split('/').pop()));
+    } else {
+      bd.href = raw;
+      bd.target = '_blank';
+      bd.rel = 'noopener';
+    }
+    tdAct.appendChild(bd);
+
+    tr.append(tdName, tdRepo, tdSize, tdAct);
+    body.appendChild(tr);
+  }
+}
+
 /* ---------------- Busca ---------------- */
 
 let searchTimer = null;
-function applySearch(q) {
-  const n = norm(q.trim());
-  let visible = 0;
-  for (const c of grid.children) {
-    const show = !n || c.dataset.search.includes(n);
-    c.style.display = show ? '' : 'none';
-    if (show) visible++;
-  }
-  emptyMsg.hidden = visible !== 0;
-  $('#games-count').textContent = visible + (n ? ' jogo(s) encontrado(s)' : ' jogos — use a busca para encontrar o seu.');
-}
+$('#search').addEventListener('input', e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    state.q = e.target.value;
+    state.page = 1;
+    renderPage();
+  }, 120);
+});
 
 /* ---------------- Configurações: UI ---------------- */
 
@@ -700,7 +1008,6 @@ addEventListener('keydown', e => {
 /* ---------------- Inicialização ---------------- */
 
 function init() {
-  /* gradient para a estrela da marca */
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   defs.setAttribute('width', '0');
   defs.setAttribute('height', '0');
@@ -708,8 +1015,10 @@ function init() {
   defs.innerHTML = '<defs><linearGradient id="bg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b7cf7"/><stop offset="1" stop-color="#5eead4"/></linearGradient></defs>';
   document.body.appendChild(defs);
 
-  renderGames();
+  $('#stat-count').textContent = GAMES.length;
+  renderPage();
   renderLinks();
+  renderFiles();
 
   syncSettingsUI();
   document.documentElement.classList.toggle('reduce', S.reduce);
@@ -720,18 +1029,11 @@ function init() {
   addEventListener('resize', () => { resizeCanvas(); if (S.particles && S.reduce) drawStatic(); }, { passive: true });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) ensureLoop(); });
 
-  /* busca */
-  const search = $('#search');
-  search.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => applySearch(search.value), 120);
-  });
-
   /* configurações */
   btnSettings.addEventListener('click', () => openSettings(true));
   $('#settings-close').addEventListener('click', () => openSettings(false));
   settings.addEventListener('click', e => { if (e.target === settings) openSettings(false); });
-  addEventListener('keydown', e => { if (e.key === 'Escape') openSettings(false); });
+  addEventListener('keydown', e => { if (e.key === 'Escape') { openSettings(false); closeMirrors(); } });
 
   $('#set-particles').addEventListener('change', e => { S.particles = e.target.checked; saveSettings(); particlesApply(); });
   $('#set-cursor').addEventListener('change', e => { S.cursor = e.target.checked; saveSettings(); cursorApply(); });
@@ -751,6 +1053,16 @@ function init() {
     document.documentElement.classList.toggle('reduce', S.reduce);
     cursorApply(); particlesApply(); observeCards();
     toast('Configurações restauradas. ✨');
+  });
+
+  /* espelhos */
+  $('#mirrors-close').addEventListener('click', closeMirrors);
+  mirrors.addEventListener('click', e => { if (e.target === mirrors) closeMirrors(); });
+
+  /* mantle */
+  $('#mantle-site').addEventListener('click', () => openInBlank(MANTLE.site));
+  document.querySelectorAll('[data-relay]').forEach(b => {
+    b.addEventListener('click', () => openInBlank(b.dataset.relay));
   });
 }
 
