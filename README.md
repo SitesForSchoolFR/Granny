@@ -4,7 +4,7 @@ A recriação, em **GitHub Pages**, dos 5 links de jogos (WebSight / LinkDuper) 
 
 ## O que tem no site
 
-- **210 jogos** — todos os jogos dos 5 links (biblioteca principal, escolhidos a mão e biblioteca externa)
+- **206 jogos** — todos os jogos dos 5 links (biblioteca principal, escolhidos a mão e biblioteca externa)
 - **Jogar em `about:blank`** — como no site original: cada jogo abre numa janela `about:blank`
 - **Download de todos os jogos** — quando o arquivo existe em repositório público, o site baixa direto no navegador (fetch → blob); caso contrário, abre o site original
 - **Os 5 links originais** — seção dedicada com status (4 ativos, 1 offline)
