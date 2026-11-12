@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <base href="https://cdn.jsdelivr.net/gh/Onex558/potesss@main/s-macke.github.io/FSHistory/">
+
+  <title>Microsoft Flight Simulator</title>
+
+  <script src="bzip2.js"></script>
+  <script src="dos.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #screen {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font: 32px Arial, sans-serif;
+      background: black;
+      z-index: 9999;
+    }
+  </style>
+</head>
+
+<body onload="startGame()">
+
+<div id="loading">Loading Microsoft Flight Simulator...</div>
+
+<canvas id="screen" width="640" height="480"></canvas>
+
+<script>
+function startGame() {
+    if (typeof Main === "function") {
+        Main(4);
+    }
+
+    document.getElementById("loading").style.display = "none";
+}
+</script>
+
+</body>
+</html>

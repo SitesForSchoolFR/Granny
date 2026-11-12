@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DriveFlix</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: #080808;
+            color: white;
+        }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #101010;
+            border-bottom: 1px solid #222;
+            padding: 16px 25px;
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+        .logo {
+            font-size: 25px;
+            font-weight: bold;
+            color: #00ff88;
+            white-space: nowrap;
+        }
+        .search {
+            flex: 1;
+            max-width: 600px;
+        }
+        .search input {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #181818;
+            color: white;
+            outline: none;
+        }
+        .search input:focus {
+            border-color: #00ff88;
+        }
+        .hero {
+            padding: 55px 7%;
+            background:
+                linear-gradient(90deg, #050505 20%, transparent),
+                linear-gradient(180deg, #101010, #080808);
+        }
+        .hero h1 {
+            font-size: 45px;
+            margin-bottom: 12px;
+        }
+        .hero p {
+            color: #aaa;
+            max-width: 650px;
+        }
+        .categories {
+            padding: 20px 7%;
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+        }
+        .category {
+            background: #181818;
+            border: 1px solid #292929;
+            color: #ddd;
+            padding: 9px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .category:hover, .category.active {
+            background: #00ff88;
+            color: #000;
+        }
+        .container {
+            padding: 20px 7% 50px;
+        }
+        .movie-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 22px;
+        }
+        .movie {
+            background: #111;
+            border-radius: 10px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: .2s;
+            border: 1px solid #222;
+        }
+        .movie:hover {
+            transform: translateY(-5px);
+            border-color: #00ff88;
+        }
+        .poster {
+            width: 100%;
+            aspect-ratio: 2 / 3;
+            object-fit: cover;
+            display: block;
+            background: #181818;
+        }
+        .movie-info {
+            padding: 12px;
+        }
+        .movie-title {
+            font-weight: bold;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        .movie-category {
+            color: #888;
+            font-size: 13px;
+        }
+        .player-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .94);
+            z-index: 500;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .player {
+            width: min(1100px, 100%);
+            background: #111;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .player-top {
+            padding: 14px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #222;
+        }
+        .player-title {
+            font-weight: bold;
+        }
+        .close {
+            background: #222;
+            border: 0;
+            color: white;
+            font-size: 20px;
+            width: 35px;
+            height: 35px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .close:hover {
+            background: #00ff88;
+            color: #000;
+        }
+        .video-container {
+            background: #000;
+            aspect-ratio: 16 / 9;
+        }
+        .video-container iframe {
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .empty {
+            text-align: center;
+            color: #777;
+            padding: 50px;
+            display: none;
+        }
+        @media (max-width: 600px) {
+            header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+            .logo {
+                text-align: center;
+            }
+            .hero {
+                padding: 35px 5%;
+            }
+            .hero h1 {
+                font-size: 32px;
+            }
+            .container {
+                padding: 15px 5% 40px;
+            }
+            .movie-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">🎬 DriveFlix</div>
+        <div class="search">
+            <input id="search" type="text" placeholder="Search movies..." oninput="renderMovies()">
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Watch Movies</h1>
+        <p>Your movie library powered by Google Drive. Choose a movie below to start watching.</p>
+    </section>
+
+    <div class="categories" id="categories"></div>
+
+    <main class="container">
+        <div class="movie-grid" id="movieGrid"></div>
+        <div class="empty" id="empty">No movies found.</div>
+    </main>
+
+    <div class="player-overlay" id="playerOverlay">
+        <div class="player">
+            <div class="player-top">
+                <div class="player-title" id="playerTitle">Movie</div>
+                <button class="close" onclick="closePlayer()">×</button>
+            </div>
+            <div class="video-container">
+                <iframe id="player" allow="autoplay; fullscreen" allowfullscreen></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const movies = [
+            {
+                title: "Spider-Man: Into the Spider-Verse",
+                category: "Movies",
+                driveId: "1Sd1l_LhKRp_2OE5gRJJyPubnZjJccLgQ",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/images%20(61).jpeg"
+            },
+            {
+                title: "Deadpool & Wolverine",
+                category: "Movies",
+                driveId: "1aBzsoTJAjhZeFFDkIV2SN7p7ZHagUEDc",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/images%20(60).jpeg"
+            },
+            {
+                title: "Despicable Me 4",
+                category: "Movies",
+                driveId: "1siki1wYP3LpfjFpUT8Z9lJuJzl7MdBhX",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/images%20(62).jpeg"
+            },
+            {
+                title: "Zootopia 2",
+                category: "Movies",
+                driveId: "1KNegq-C6-dZil5EaQktUdTFfw_3W9N2k",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/images%20(68).jpeg"
+            },
+            {
+                title: "Zootopia",
+                category: "Movies",
+                driveId: "1UIFS9t9OEVbish0xa7C0PaLw87LBUsjA",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(5).jpeg"
+            },
+            {
+                title: "The Lorax",
+                category: "Movies",
+                driveId: "15SfMD7ToZl3cVd4VVKqF4vRqLLTxbu2-",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(6).jpeg"
+            },
+            {
+                title: "The Notebook",
+                category: "Movies",
+                driveId: "1I2nBG4-GIOg54cNuhbcf_dHnNMgaDyid",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(7).jpeg"
+            },
+            {
+                title: "The Odyssey (2026)",
+                category: "Movies",
+                driveId: "1mxKzlqyjkHJmA6lUx4LgUQYKAN5CnyA-",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(8).jpeg"
+            },
+            {
+                title: "The Shawshank Redemption",
+                category: "Movies",
+                driveId: "1DgyO5sr7_ViTY7ekcdSC7sqFUp38yKwy",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(9).jpeg"
+            },
+            {
+                title: "The Sheep Detectives",
+                category: "Movies",
+                driveId: "1ZUlzgAEhWRlKglwQp9E0jm91oRDrehST",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(10).jpeg"
+            },
+            {
+                title: "The Super Mario Galaxy Movie",
+                category: "Movies",
+                driveId: "1YwluTOAGVgpNm2ySnKxIpvpMyTUKun8z",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(11).jpeg"
+            },
+            {
+                title: "The Wild Robot (2024)",
+                category: "Movies",
+                driveId: "1qKVzvjmUfBk8UTZD3_ek9B8Ae5AVfm7G",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(12).jpeg"
+            },
+            {
+                title: "Tom & Jerry",
+                category: "Movies",
+                driveId: "1eN4-wHnWb6u6qpVAyShwmRmnK4lw_xm6",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(13).jpeg"
+            },
+            {
+                title: "Turbo",
+                category: "Movies",
+                driveId: "1s1d8BUFdY7NkqxebQK4PIqFgC0L0mI4e",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(14).jpeg"
+            },
+            {
+                title: "Whiplash",
+                category: "Movies",
+                driveId: "18uC0MXvfXdZjAto-_bV5pqDnG6oDIfOn",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(15).jpeg"
+            },
+            {
+                title: "White Chicks",
+                category: "Movies",
+                driveId: "1vqiiuoY5a7V7ALSFR730qD2tXyTuw85q",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(16).jpeg"
+            },
+            {
+                title: "The House (Netflix)",
+                category: "Movies",
+                driveId: "1NV-5KVEax2ZBrOIiWIKBajZyufUEEbz1",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/images%20(69).jpeg"
+            },
+            {
+                title: "The Incredibles",
+                category: "Movies",
+                driveId: "1xKBX8c4AkGY_ROnLs6h_X250pJt1gMNO",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(17).jpeg"
+            },
+            {
+                title: "The Dark Knight 2008",
+                category: "Movies",
+                driveId: "1ECCEVHkT2eJE5S-2W6ypHieC1Cl-id4P",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(18).jpeg"
+            },
+            {
+                title: "The Devil Wears Prada 2",
+                category: "Movies",
+                driveId: "1OQUPB9d6zJ_yVlrEr9qMMxmQvCDnomB7",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(19).jpeg"
+            },
+            {
+                title: "The Godfather",
+                category: "Movies",
+                driveId: "1nSqZkLzJwMr06Z0Pd6I6EXwFV8bgwEst",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(20).jpeg"
+            },
+            {
+                title: "The Hangover",
+                category: "Movies",
+                driveId: "1SWV2R-yzVh5lMb3CKBE4mgKSHzJxlfIA",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(21).jpeg"
+            },
+            {
+                title: "Ted 2",
+                category: "Movies",
+                driveId: "1HwA-_jLD1ToHCKq2fiYohz6fQb0cdAUM",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(22).jpeg"
+            },
+            {
+                title: "The Angry Birds Movie",
+                category: "Movies",
+                driveId: "1APeLiYF7s1lKrdsYAXItXFuBytWoCRfi",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(23).jpeg"
+            },
+            {
+                title: "Rush Hour 2 (2001)",
+                category: "Movies",
+                driveId: "1IFc2bkDKtJZn0JPic-CwBfjy5PzGPDPC",
+                poster: "https://cdn.jsdelivr.net/gh/Onex558/uranium-source-@main/images/download%20(24).jpeg"
+            },
+            {
+                title: "Rush Hour 3 (2007)",
+                category: "Movies",
+                driveId: "1k_ipNUHjA3PJKgWCbaFGbTXYWXtcX2i2",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Rush+Hour+3"
+            },
+            {
+                title: "Shin Godzilla (English Subbed)",
+                category: "Movies",
+                driveId: "19yAYeNBZPTpI_ot4dfyOalwczLH2GAfq",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Shin+Godzilla"
+            },
+            {
+                title: "South Park Movie - Bigger, Longer & Uncut",
+                category: "Movies",
+                driveId: "1hXmFvA9vEwBirbdoLypOX8yq72D5gR9z",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=South+Park+Movie"
+            },
+            {
+                title: "Spider-Man (2002)",
+                category: "Movies",
+                driveId: "1C5jo4h1rE7cfEI3VOAb0Ir-qbkHnaueE",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Spider-Man+2002"
+            },
+            {
+                title: "Spider-Man: Brand New Day",
+                category: "Movies",
+                driveId: "10vA4j_SNahcu_-EVfifgDn6aRDm63Jq4",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Brand+New+Day"
+            },
+            {
+                title: "Stuart Little",
+                category: "Movies",
+                driveId: "1zXRMPi1dmlHZ6AWGsh1gStkPogNyyIWn",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Stuart+Little"
+            },
+            {
+                title: "Swapped",
+                category: "Movies",
+                driveId: "1tMjp2gJ3Uqq1FrpPsBzbc6WEv5qQ9-mb",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Swapped"
+            },
+            {
+                title: "Ted",
+                category: "Movies",
+                driveId: "1pSZD4jAXXgo-5LeAr7XXszGCMZIizcPc",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Ted"
+            },
+            {
+                title: "Rio",
+                category: "Movies",
+                driveId: "1wGlDm8pDJcwRP-ETEMZO2AgJqsThafj7",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Rio"
+            },
+            {
+                title: "Rush Hour 1",
+                category: "Movies",
+                driveId: "17xeFBfzkhptIcWQZRbhQMpNbo7k954yN",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Rush+Hour+1"
+            },
+            {
+                title: "Richie Rich (1994)",
+                category: "Movies",
+                driveId: "1GjScXikQVf-05a2KWH29qbSDaAwQmCnG",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Richie+Rich"
+            },
+            {
+                title: "Remarkably Bright Creatures",
+                category: "Movies",
+                driveId: "1_FPHLGM0bf3OwQp1ITWcNnZkjwGyN5nj",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Remarkably+Bright"
+            },
+            {
+                title: "Puss in Boots: The Last Wish",
+                category: "Movies",
+                driveId: "1bm-Onpy4vEVo0up3zidl1FV2qp0BnHpM",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Puss+in+Boots"
+            },
+            {
+                title: "Michael",
+                category: "Movies",
+                driveId: "1JsiOL8q9ntyQrWiEOYHfI9YVpX9yS_zA",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Michael"
+            },
+            {
+                title: "Minions & Monsters (2026)",
+                category: "Movies",
+                driveId: "1utHVVSdrUl9wSrL6F-1KksbdmPRB2ydf",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Minions+and+Monsters"
+            },
+            {
+                title: "Mortal Kombat II",
+                category: "Movies",
+                driveId: "1044gc3KFFkJL_nU2sWe_ms4E_melVhI6",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Mortal+Kombat+II"
+            },
+            {
+                title: "Obsession",
+                category: "Movies",
+                driveId: "1uKnr3iWiNIHwT9LmsL7TwJ0Tff7UKMGQ",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Obsession"
+            },
+            {
+                title: "Paddington 2",
+                category: "Movies",
+                driveId: "1apD8ApSykpX_8p9QlHieX3r5fB5xVVs1",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Paddington+2"
+            },
+            {
+                title: "Paddington",
+                category: "Movies",
+                driveId: "1yBTxmfU0eyzdh1DpiRqTDcMV-a-jGpKp",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Paddington"
+            },
+            {
+                title: "Passenger (2026)",
+                category: "Movies",
+                driveId: "1055QWQ3nlMt56b0Rp-VaEVr-orjjyTs0",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Passenger"
+            },
+            {
+                title: "Peter Rabbit",
+                category: "Movies",
+                driveId: "1XLmPmRo2Ar5-fuphkzb8cqdIt5w20jZ4",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Peter+Rabbit"
+            },
+            {
+                title: "Project Hail Mary",
+                category: "Movies",
+                driveId: "1xL8jItRY7mw-rcRio2pE6X66819lJ_L1",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Project+Hail+Mary"
+            },
+            {
+                title: "Little Man",
+                category: "Movies",
+                driveId: "1xy-IbKtahtOmudKvOhy6-M9JgYkOrmJX",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Little+Man"
+            },
+            {
+                title: "Home Alone 2 (1992)",
+                category: "Movies",
+                driveId: "1DmmDa-3KlWbEvuyid4DixLzkxmu63ESR",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Home+Alone+2"
+            },
+            {
+                title: "Hoppers",
+                category: "Movies",
+                driveId: "1oU8imq0vL8VAO1JwY-Xfy6xfqplPZFM1",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Hoppers"
+            },
+            {
+                title: "Hot Fuzz",
+                category: "Movies",
+                driveId: "1tjXkKRpiPYnG9iFyUnUWQOSCLRLJ_Nvy",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Hot+Fuzz"
+            },
+            {
+                title: "Interstellar",
+                category: "Movies",
+                driveId: "13TAOVyat3S7_31V79tuxLof6eLQ-ZJgM",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Interstellar"
+            },
+            {
+                title: "Disclosure Day (2026)",
+                category: "Movies",
+                driveId: "1qQuQDp30cMq5GVP8pzonzxdqyAg0j5MI",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Disclosure+Day"
+            },
+            {
+                title: "Dune Part Two",
+                category: "Movies",
+                driveId: "1Q9JLksemCaP8mInyhwqUhwow5_g8EFPB",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Dune+Part+Two"
+            },
+            {
+                title: "The Fast and the Furious: Tokyo Drift",
+                category: "Movies",
+                driveId: "1ZvcInYGYWDpO6an3dsMcpM9-ecjMrbey",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Tokyo+Drift"
+            },
+            {
+                title: "Fight Club",
+                category: "Movies",
+                driveId: "1yB1FbOEhiu20WGNZsSqi6hWeLliZSQjj",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Fight+Club"
+            },
+            {
+                title: "Godzilla Minus One",
+                category: "Movies",
+                driveId: "1yBkXWhysEPQksSb3ve8kwNR5Ve6iz_0s",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Godzilla+Minus+One"
+            },
+            {
+                title: "Hokum",
+                category: "Movies",
+                driveId: "1_bEHKmcThUGRvnJes9sCz51Dzvfnw-gP",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Hokum"
+            },
+            {
+                title: "Home Alone (1990)",
+                category: "Movies",
+                driveId: "1MwHNPHH5QkwTJK6BFP_IWZ5GkR8n2NLD",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Home+Alone"
+            },
+            {
+                title: "Chicken Run",
+                category: "Movies",
+                driveId: "1Uo6TfSVZNmPuvTwVvdgLgo0nruwQd4lQ",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Chicken+Run"
+            },
+            {
+                title: "Chicken Run: Dawn of the Nugget",
+                category: "Movies",
+                driveId: "1SI2I1jLhzDxtsNdqqoDIQ3ki4VMqe9oA",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Dawn+of+the+Nugget"
+            },
+            {
+                title: "Chip 'n Dale: Rescue Rangers",
+                category: "Movies",
+                driveId: "15pC_JF2yPtduziE5rfSVeEMz9muU8TE_",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Rescue+Rangers"
+            },
+            {
+                title: "Cloudy with a Chance of Meatballs",
+                category: "Movies",
+                driveId: "1yQvf8n1K4sESRDN7r0qlr95O7gqB3jIn",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Meatballs+1"
+            },
+            {
+                title: "Cloudy with a Chance of Meatballs 2",
+                category: "Movies",
+                driveId: "1-bulZQiAAsbK5_C82qyu-E_w_6ID4KCt",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Meatballs+2"
+            },
+            {
+                title: "Cruella",
+                category: "Movies",
+                driveId: "1Fzy4ixJCSZ_Uj33aYFTEkqD7nMYT-Hs8",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Cruella"
+            },
+            {
+                title: "Diary of a Wimpy Kid",
+                category: "Movies",
+                driveId: "1JBaUQ5DtJKQLhChLWX2tSMn2lR1ZJMe7",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Wimpy+Kid"
+            },
+            {
+                title: "The Amazing Digital Circus: The Last Act",
+                category: "Movies",
+                driveId: "1WvoYJQadiguLg4q6sHpMHT2B3wOUys2Z",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Digital+Circus"
+            },
+            {
+                title: "A Minecraft Movie (2025)",
+                category: "Movies",
+                driveId: "1FnY8NP1iTJbha1Yb3V4WFO64s25n8q8V",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Minecraft+Movie"
+            },
+            {
+                title: "Backrooms (2026)",
+                category: "Movies",
+                driveId: "1CaYhqOzX2waMSswiHQhLbRcx1gI2Dmh2",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Backrooms"
+            },
+            {
+                title: "Captain Underpants: The First Epic Movie",
+                category: "Movies",
+                driveId: "1O9O9-5R_TvO1yHFxaP4V-NbUa5c0a1z1",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Captain+Underpants"
+            },
+            {
+                title: "SpongeBob Movie",
+                category: "Movies",
+                driveId: "1RCiXmbRfWyMQnJLa5vNTvSiIxZFG1mq5",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=SpongeBob+Movie"
+            },
+            {
+                title: "Shrek 1",
+                category: "Movies",
+                driveId: "1ohXNP73ZyD2VISZZ0aV_rL2MSWskf9NX",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Shrek+1"
+            },
+            {
+                title: "Shrek 2",
+                category: "Movies",
+                driveId: "1xtr5zFmpt6iD89Tn8VthzEiBij89J9pZ",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Shrek+2"
+            },
+            {
+                title: "Jurassic World Domination",
+                category: "Movies",
+                driveId: "1x84uwAQzm7-j9MhDdNF5sb_jCRQFhjIa",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Jurassic+World"
+            },
+            {
+                title: "Joker",
+                category: "Movies",
+                driveId: "1__wCd7uV9s7qY-o7qZ6F1lO9UQPV7B90",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Joker"
+            },
+            {
+                title: "Five Nights At Freddy's",
+                category: "Movies",
+                driveId: "YOUR_GOOGLE_DRIVE_FILE_ID",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=FNAF+1"
+            },
+            {
+                title: "Five Nights At Freddy's 2",
+                category: "Movies",
+                driveId: "1dW1XsOWtiL0mGHOFIB8n0rEhLPoa2buJ",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=FNAF+2"
+            },
+            {
+                title: "Iron Man 3",
+                category: "Movies",
+                driveId: "1I3cDTsDBihDYId6KuKS6ighOcJ5g6oyC",
+                poster: "https://placehold.co/400x600/111111/00ff88?text=Iron+Man+3"
+            }
+        ];
+
+        let currentCategory = "All";
+
+        function createCategories() {
+            const categories = ["All", ...new Set(movies.map(m => m.category))];
+            const container = document.getElementById("categories");
+            container.innerHTML = "";
+            categories.forEach(category => {
+                const button = document.createElement("button");
+                button.className = "category" + (category === currentCategory ? " active" : "");
+                button.textContent = category;
+                button.onclick = () => {
+                    currentCategory = category;
+                    createCategories();
+                    renderMovies();
+                };
+                container.appendChild(button);
+            });
+        }
+
+        function renderMovies() {
+            const grid = document.getElementById("movieGrid");
+            const empty = document.getElementById("empty");
+            const search = document.getElementById("search").value.toLowerCase().trim();
+            grid.innerHTML = "";
+            const filtered = movies.filter(movie => {
+                const matchesSearch = movie.title.toLowerCase().includes(search);
+                const matchesCategory = currentCategory === "All" || movie.category === currentCategory;
+                return matchesSearch && matchesCategory;
+            });
+            if (filtered.length === 0) {
+                empty.style.display = "block";
+                return;
+            }
+            empty.style.display = "none";
+            filtered.forEach(movie => {
+                const card = document.createElement("div");
+                card.className = "movie";
+                card.onclick = () => openMovie(movie);
+                card.innerHTML = `
+                    <img class="poster" src="${movie.poster}" alt="${escapeHTML(movie.title)}" loading="lazy"
+                        onerror="this.src='https://placehold.co/400x600/111111/00ff88?text=No+Poster'">
+                    <div class="movie-info">
+                        <div class="movie-title">${escapeHTML(movie.title)}</div>
+                        <div class="movie-category">${escapeHTML(movie.category)}</div>
+                    </div>`;
+                grid.appendChild(card);
+            });
+        }
+
+        function openMovie(movie) {
+            if (!movie.driveId || movie.driveId === "YOUR_GOOGLE_DRIVE_FILE_ID") {
+                alert("This movie does not have a Google Drive file ID configured yet.");
+                return;
+            }
+            document.getElementById("playerTitle").textContent = movie.title;
+            document.getElementById("player").src = `https://drive.google.com/file/d/${encodeURIComponent(movie.driveId)}/preview`;
+            document.getElementById("playerOverlay").style.display = "flex";
+        }
+
+        function closePlayer() {
+            document.getElementById("playerOverlay").style.display = "none";
+            document.getElementById("player").src = "";
+        }
+
+        function escapeHTML(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.addEventListener("keydown", e => { if (e.key === "Escape") closePlayer(); });
+        
+        document.getElementById("playerOverlay").addEventListener("click", e => {
+            if (e.target.id === "playerOverlay") closePlayer();
+        });
+
+        createCategories();
+        renderMovies();
+    </script>
+</body>
+</html>
