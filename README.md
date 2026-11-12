@@ -12,7 +12,7 @@ A recriação, em **GitHub Pages**, dos 5 links de jogos (WebSight / LinkDuper) 
   - **DuckMath**
   - escolhidos a mão e biblioteca externa (Axiom, Noah's Hub…)
 - **Paginação** — 24 jogos por página (fileiras e colunas); nada é carregado de uma vez
-- **Jogar em `about:blank`** — como no site original: cada jogo abre numa janela `about:blank`
+- **Jogar em `about:blank`** — como no site original: cada jogo abre numa janela que **permanece** `about:blank` (a janela de jogo é escrita dentro dela)
 - **Espelhos (mirrors)** — botão 🔗 em cada card: vários CDNs/hosts do mesmo jogo (jsDelivr, githack, esm.sh, p5js, npm…) para quando a escola bloqueia um
 - **Tabela de downloads** — todos os 77 arquivos reais dos repositórios (jogos `.html`, zips, ROMs, parts), com tamanho e botão de download direto
 - **Mantle Launcher** (getmantle.pages.dev) — card com o site de download + 3 relays que abrem o Mantle no navegador
@@ -33,16 +33,13 @@ app.js       → dados dos jogos, paginação, partículas, cursor, configuraç�
 
 ## Como funciona o "Jogar"
 
-1. O site abre uma janela `about:blank`
-2. Em seguida, abre a **janela de jogo do NEBULA** (`jogo.html`), que exibe o jogo **em iframe**:
-   - **Arquivos diretos** (Doom, GTA, Mario…): **hospedados no próprio site** (pasta `games/`, domínio GitHub Pages liberado na escola) — o emulador e as ROMs ainda vêm dos CDNs públicos
+1. O site abre uma janela **`about:blank`** e escreve a **janela de jogo do NEBULA dentro dela** (mesma técnica de "about:blank cloaking" do site original) — a barra do navegador **permanece `about:blank`**, nunca uma URL com sobras
+2. A janela mostra o jogo **em iframe**, servido **do próprio site** (pasta `games/`, domínio GitHub Pages liberado na escola) — o emulador e as ROMs ainda vêm dos CDNs públicos
    - **GN-Math v1**: `raw.esm.sh` (repo `Why2ITry/gn-math-links-2-1`)
    - **GN-Math 2.0 / DuckMath**: npm/esm.sh/p5js (com espelhos)
    - **Demais jogos**: abrem no site original (WebSight via Google Apps Script)
-3. O iframe contorna bloqueios de rede escolar (que costumam interceptar a navegação direta ao CDN e mostrar só o código)
-4. Se o espelho principal falhar, a janela **troca automaticamente** para o alternativo (githack); há botões “Espelho” e “Abrir direto” na barra
-5. Alguns jogos mostram um botão **“PLAY” ou “Load”** — é só clicar para começar (a janela avisa isso)
-6. `Esc` fecha a janela do jogo
+3. Se o espelho principal falhar, a janela **troca automaticamente** para o alternativo (jsDelivr); o botão “Espelho” troca manualmente
+4. O botão “NEBULA” na barra leva de volta para o site; `Esc` fecha a janela (antes de clicar dentro do jogo)
 
 ## Os 5 links
 
