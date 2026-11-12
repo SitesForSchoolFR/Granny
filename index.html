@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEBULA — Central de Jogos</title>
+  <meta name="description" content="NEBULA — todos os jogos dos 5 links, num lugar só. Leve, limpo e rápido. Jogue direto no navegador ou baixe.">
+  <meta name="theme-color" content="#08080f">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b7cf7'/%3E%3Cstop offset='1' stop-color='%235eead4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M32 2l6.9 22.6L62 32l-23.1 7.4L32 62l-6.9-22.6L2 32l23.1-7.4z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Fundo em partículas -->
+  <canvas id="particles" aria-hidden="true"></canvas>
+
+  <!-- Cursor personalizado: ponto + anel suave -->
+  <div id="cur-dot" aria-hidden="true"></div>
+  <div id="cur-ring" aria-hidden="true"></div>
+
+  <!-- Barra superior -->
+  <header class="topbar">
+    <a class="brand" href="#top" data-cursor>
+      <svg class="brand-star" viewBox="0 0 64 64" aria-hidden="true"><path fill="url(#bg1)" d="M32 2l6.9 22.6L62 32l-23.1 7.4L32 62l-6.9-22.6L2 32l23.1-7.4z"/></svg>
+      <span>NEBULA</span>
+    </a>
+
+    <div class="topbar-actions">
+      <div class="searchbox">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="search" type="search" placeholder="Buscar jogo…" autocomplete="off" aria-label="Buscar jogo">
+      </div>
+      <button id="btn-settings" class="icon-btn" aria-label="Configurações" aria-expanded="false" data-cursor>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.58 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.86a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08A1.7 1.7 0 0 0 10.12 3V3a2 2 0 1 1 4 0v.09c0 .68.4 1.3 1.03 1.56.6.27 1.3.13 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08c.26.63.88 1.03 1.56 1.03H21a2 2 0 1 1 0 4h-.09c-.68 0-1.3.4-1.51 1.03z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <p class="hero-kicker">✦ central de jogos</p>
+      <h1>Todos os jogos.<br><span class="grad">Um só lugar.</span></h1>
+      <p class="hero-sub">
+        A recriação dos 5 links — mais leve, mais limpa e mais rápida.
+        Jogue direto no navegador (em <em>about:blank</em>) ou baixe o que quiser.
+      </p>
+      <div class="hero-cta">
+        <a href="#jogos" class="btn btn-primary" data-cursor>Explorar jogos</a>
+        <a href="#links" class="btn btn-ghost" data-cursor>Ver os 5 links</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><strong id="stat-count">—</strong><span>jogos</span></div>
+        <div class="stat"><strong>5</strong><span>links de acesso</span></div>
+        <div class="stat"><strong>0&nbsp;MB</strong><span>de app — 100% web</span></div>
+      </div>
+    </section>
+
+    <!-- Jogos -->
+    <section class="section" id="jogos">
+      <div class="section-head">
+        <h2>Jogos</h2>
+        <p id="games-count" class="section-sub">Carregando…</p>
+      </div>
+      <div class="grid" id="grid"></div>
+      <p id="empty" class="empty" hidden>Nenhum jogo encontrado. Tente outra busca. ✨</p>
+    </section>
+
+    <!-- Os 5 links -->
+    <section class="section" id="links">
+      <div class="section-head">
+        <h2>Os 5 links</h2>
+        <p class="section-sub">Todos os pontos de acesso originais — cada um abre em <em>about:blank</em>.</p>
+      </div>
+      <div class="links" id="links-grid"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>
+      <span class="brand-star-inline">✦</span> NEBULA — feito com carinho para a escola · 2026
+    </p>
+    <p class="footer-hint">psst… existe uma palavra mágica escondida neste site 🤫</p>
+  </footer>
+
+  <!-- Painel de configurações -->
+  <div id="settings" class="settings" role="dialog" aria-label="Configurações" aria-hidden="true">
+    <div class="settings-card">
+      <div class="settings-head">
+        <h3>Configurações</h3>
+        <button id="settings-close" class="icon-btn" aria-label="Fechar configurações" data-cursor>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="setting">
+        <div class="setting-label">
+          <span>Partículas</span>
+          <small>O fundo estrelado animado</small>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-particles" data-cursor><span></span></label>
+      </div>
+
+      <div class="setting">
+        <div class="setting-label">
+          <span>Densidade das partículas</span>
+          <small>Poucas, médias ou muitas</small>
+        </div>
+        <div class="seg" role="group" aria-label="Densidade das partículas">
+          <button data-d="baixa" data-cursor>Baixa</button>
+          <button data-d="media" data-cursor>Média</button>
+          <button data-d="alta" data-cursor>Alta</button>
+        </div>
+      </div>
+
+      <div class="setting">
+        <div class="setting-label">
+          <span>Cursor personalizado</span>
+          <small>Ponto + anel que segue o mouse</small>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-cursor" data-cursor><span></span></label>
+      </div>
+
+      <div class="setting">
+        <div class="setting-label">
+          <span>Movimento reduzido</span>
+          <small>Menos animações, menos efeito</small>
+        </div>
+        <label class="switch"><input type="checkbox" id="set-reduce" data-cursor><span></span></label>
+      </div>
+
+      <button id="set-reset" class="btn btn-ghost btn-sm" data-cursor>Redefinir padrões</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <noscript>
+    <div class="noscript">
+      <p>Este site precisa de JavaScript. Enquanto isso, os 5 links originais:</p>
+      <ol>
+        <li><a href="https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=HVLL6YBBC5">Link 1 — HVLL6YBBC5</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=V9KM79NFHC">Link 2 — V9KM79NFHC</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=J4JXSS9W3N">Link 3 — J4JXSS9W3N</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=GEMXRNAA6W">Link 4 — GEMXRNAA6W</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbw3KzPix7iLtyJFB7eVqm2NCWhRoqSl0G38p7YeJm6KEHlETcuc-8jVnom69pUcwQUk/exec?id=HUZSGDFGGP">Link 5 — HUZSGDFGGP</a></li>
+      </ol>
+    </div>
+  </noscript>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
